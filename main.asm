@@ -24,6 +24,14 @@
 .eqv OFFSET_STATUS_AP 240 # Somente um byte, será usado para representar se o AP esta vazio ou cheio
 .eqv OFFSET_NUM_MORADORES 241 # Representa a quantidade de moradores.
 
+
+.eqv OFFSET_VEICULO1_TIPO 160 # 1 byte para o tipo, sera C ou M
+.eqv OFFSET_VEICULO1_MODELO 161 # 20 bytes para o modelo do veiculo
+.eqv OFFSET_VEICULO1_COR 181 # 19 bytes para a cor do veiculo
+
+.eqv OFFSET_VEICULO2_TIPO 200  # 1 byte para o tipo, sera C ou M
+.eqv OFFSET_VEICULO2_MODELO 201  # 20 bytes para o modelo do veiculo
+.eqv OFFSET_VEICULO2_COR 221 # 19 bytes para a cor do veiculo
 # ----- Macros ------ #
 .macro PRINT_STRING (%str)
     li $v0, 4          # Código de serviço para imprimir string
@@ -36,7 +44,6 @@
     move $a0, %valor   # Move o valor para $a0
     syscall             # Chama o sistema
 .end_macro
-
 .macro COMPARAR_CMD  (%str_addr, %len, %handler)
     la $a0, input_buffer      # Carrega o buffer de entrada
     la $a1, %str_addr         # Carrega o endereço da string de comando
@@ -305,7 +312,7 @@ adicionar_morador:
     lw   $s5, 24($sp)
     addi $sp, $sp, 28 # Libera o espaço da pilha
     j loop_inteface  # Volta para o início do loop
-    
+
 remover_morador:
     PRINT_STRING msg_limpa_terminal
     # Boa prática: Salvar os registradores que serão usados na pilha
@@ -622,12 +629,12 @@ tipo_ok:
     add  $s0, $t2, $t1 # $s0 = endereço base do AP
 
     # 3.2: Verificar Slot 1
-    add  $s3, $s0, OFFSET_VEICULO1 # $s3 = endereço do slot 1
+    addi  $s3, $s0, OFFSET_VEICULO1 # $s3 = endereço do slot 1
     jal  verificar_slot_veiculo
     bne  $v0, $zero, veiculo_encontrado_handler # Se v0=1, encontrou!
 
     # 3.3: Se não encontrou no slot 1, verificar Slot 2
-    add  $s3, $s0, OFFSET_VEICULO2 # $s3 = endereço do slot 2
+    addi  $s3, $s0, OFFSET_VEICULO2 # $s3 = endereço do slot 2
     jal  verificar_slot_veiculo
     bne  $v0, $zero, veiculo_encontrado_handler
 
@@ -655,7 +662,7 @@ verificar_slot_veiculo:
     bne  $t0, $s2, nao_corresponde # $s2 tem o tipo procurado
 
     # Compara o MODELO
-    add  $a1, $a0, OFFSET_VEICULO_MODELO
+    addi  $a1, $a0, OFFSET_VEICULO_MODELO
     la   $a0, buffer_modelo_string
     # Troca $a0 e $a1 para a chamada de strcmp
     move $t5, $a0; move $a0, $a1
@@ -664,7 +671,7 @@ verificar_slot_veiculo:
     bne  $v0, $zero, nao_corresponde
 
     # Compara a COR
-    add  $a1, $a0, OFFSET_VEICULO_COR
+    addi  $a1, $a0, OFFSET_VEICULO_COR
     la   $a0, buffer_cor_string
     move $t5, $a0
     move $a0, $a1
@@ -692,19 +699,25 @@ fim_limpar:
     jr $ra
 
 # --- HANDLERS DE ERRO ---
-comando_malformado_handler: la $a0, msg_comando_malformado
- li $v0, 4
-  syscall
-  j fim_rm_auto
-ap_invalido_handler: la $a0, msg_ap_invalido
- li $v0, 4
- syscall
-  j fim_rm_auto
-tipo_invalido_handler:      la $a0, msg_tipo_invalido
- li $v0, 4
+comando_malformado_handler: 
+la $a0, msg_comando_malformado
+li $v0, 4
 syscall
 j fim_rm_auto
-auto_nao_encontrado_handler: la $a0, msg_auto_nao_encontrado
+
+ap_invalido_handler:
+la $a0, msg_ap_invalido
+li $v0, 4
+syscall
+j fim_rm_auto
+tipo_invalido_handler:
+la $a0, msg_tipo_invalido
+li $v0, 4
+syscall
+j fim_rm_auto
+
+auto_nao_encontrado_handler:
+la $a0, msg_auto_nao_encontrado
 li $v0, 4
 syscall
 j fim_rm_auto
@@ -721,7 +734,7 @@ fim_rm_auto:
     lw   $s6, 28($sp)
     addi $sp, $sp, 32
     j loop_inteface  # Volta para o início do loop
-    
+
 info_ap:
     PRINT_STRING str_info_ap
     j loop_inteface  # Volta para o início do loop
