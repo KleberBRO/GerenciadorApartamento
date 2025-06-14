@@ -358,10 +358,8 @@ remover_morador:
     jal ap_valido  # Verifica se o número do apartamento é válido
     
     move $a0, $s4  # Passa o número do apartamento para $a0
-    jal calcular_indice_ap  # Calcula o índice do apartamento
+    jal encontrar_indice_ap  # Calcula o índice do apartamento
     move $s3, $v0  # Salva o índice do apartamento em $s3
-
-    beq $v0, $0, $comando_invalido  # Se o índice for inválido, salta para comando_invalido
     
     # SEGUNDA ETAPA - Regras de Negócio
     li $t0, TAMANHO_AP_BLOCO  # Tamanho de cada bloco de apartamento
@@ -694,8 +692,8 @@ fim_limpar:
     jr $ra
 
 # --- HANDLERS DE ERRO ---
-comando_malformado_handler: la $a0, msg_comando_malformado;
- li $v0, 4;
+comando_malformado_handler: la $a0, msg_comando_malformado
+ li $v0, 4
   syscall
   j fim_rm_auto
 ap_invalido_handler: la $a0, msg_ap_invalido
