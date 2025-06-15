@@ -102,6 +102,7 @@ msg_funcao_formatar: .asciiz "Função formatar chamada com sucesso!\n"
 msg_funcao_sair: .asciiz "Função sair chamada com sucesso!\n"
 msg_lista_funcoes: .asciiz "Comandos disponíveis:\nad_morador - Adicionar morador\n rm_morador - Remover morador\n ad_auto - Adicionar automóvel\n rm_auto - Remover automóvel\ninfo_ap - Informações do apartamento\ninfo_geral - Informações gerais\nlimpar_ap - Limpar apartamento\nsalvar - Salvar dados\nrecarregar - Recarregar dados\nformatar - Formatar sistema\nsair - Sair do sistema\n"
 msg_limpa_terminal: .asciiz "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" # Sequência de escape para limpar o terminal
+msg_sucesso_formatado: .asciiz "\nApartamento formatado"
 
 # -------------- Mensagens de Apoio --------------- #
 str_abre_parenteses: .asciiz "("
@@ -110,8 +111,8 @@ str_vazios: .asciiz "vazio"
 str_nao_vazios: .asciiz "nao vazios"
 str_porcentagem: .asciiz "%"
 str_espaco: .asciiz " "
+str_nova_linha: .asciiz "\n"
 banner: .asciiz "\n\nKGP-shell>> "
-
 .text
 # -------------- Função Principal -------------- #
 main:
@@ -763,7 +764,7 @@ info_ap:
     PRINT_STRING str_info_ap
     j loop_interface  # Volta para o início do loop
 info_geral:
-    #boa prática, guarda logo tudo na pilha, msm o que não for usar
+#boa prática, guarda logo tudo na pilha, msm o que não for usar
     addi $sp, $sp, -28
     sw   $ra, 0($sp)
     sw   $s0, 4($sp)   
@@ -823,11 +824,10 @@ info_geral:
     # imprime a porcentagem
     PRINT_STRING str_abre_parenteses
     PRINT_INT $t2
-    PRINT_STRING str_espaco
     PRINT_STRING str_porcentagem
     PRINT_STRING str_fecha_parenteses
     
-    PRINT_STRING str_espaco
+    PRINT_STRING str_nova_linha
     PRINT_STRING str_vazios
     PRINT_STRING str_espaco
     PRINT_INT $s1
@@ -974,8 +974,37 @@ salvar:
 recarregar:
     PRINT_STRING str_recarregar
     j loop_interface  # Volta para o início do loop
-formatar:
-    PRINT_STRING str_formatar
+formatar: 
+# Carrega o endereço base da nossa estrutura de dados de apartamentos em $t0.
+    la $t0, apartamentos  # Carrega o endereço base dos apartamentos
+
+#calculo do endereço final do bloco de apartamentos
+    li $t1, 10240  # Tamanho total em bytes (40 apartamentos * 256 bytes cada)
+    add $t1 , $t0, $t1  # Calcula o endereço final
+
+
+formatar_loop:
+    # o loop para quando $t0 for igual a $t1
+    # ou seja, quando chegar no final do bloco de apartamentos
+    beq $t0, $t1, formatar_fim  # Se $t0 for igual a $t1, terminou o loop
+
+    sw $zero, 0($t0)  # armazena uma palavra de 4 bytes com valor 0 no endereço atual
+
+
+    addi $t0, $t0, 4  # Avança para o próximo byte
+
+
+    j formatar_loop  # Volta para o início do loop
+
+formatar_fim:
+
+    PRINT_STRING msg_sucesso_formatado  # Imprime mensagem de sucesso
+    
+    # Restaura os registradores
+    lw $t0, 0($sp)
+    lw $t1, 4($sp)
+    addi $sp, $sp, 8  # Ajusta o ponteiro da pilha
+
     j loop_interface  # Volta para o início do loop
 sair:  
     PRINT_STRING str_sair
