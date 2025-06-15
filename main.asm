@@ -111,7 +111,7 @@ main:
     #inicia o loop principal
     PRINT_STRING msg_principal
     PRINT_STRING msg_lista_funcoes
-loop_inteface:
+loop_interface:
     PRINT_STRING msg_limpa_terminal # Limpa o terminal
     PRINT_STRING banner #Imprime o banner
 
@@ -186,11 +186,11 @@ loop_inteface:
     beq $v0, $zero, sair
     # Se nenhum comando foi reconhecido, imprime mensagem de erro
     PRINT_STRING msg_comando_malformado
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 ajuda:
     PRINT_STRING msg_lista_funcoes  # Imprime a lista de comandos disponíveis
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 
 adicionar_morador:
@@ -312,7 +312,7 @@ adicionar_morador:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28 # Libera o espaço da pilha
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 ap_cheio_adicionar:
     PRINT_STRING msg_ap_cheio  # Imprime mensagem de apartamento cheio
@@ -433,7 +433,7 @@ j sucesso_remocao # finaliza a função e vai restaurar os registradores
 
 morador_nao_encontrado:
 PRINT_STRING msg_morador_nao_encontrado
-j loop_inteface
+j loop_interface
 
 falha_ap_vazio_remocao:
 PRINT_STRING msg_ap_vazio
@@ -453,7 +453,7 @@ fim_remover_morador:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 limpar_veiculos:
     # loop que pecorre 40 bytes marcando 0
@@ -550,7 +550,7 @@ adicionar_automovel:
         li
         
     
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 remover_automovel:
     # Salva registradores na pilha
     addi $sp, $sp, -32
@@ -750,26 +750,136 @@ fim_rm_auto:
     lw   $s5, 24($sp)
     lw   $s6, 28($sp)
     addi $sp, $sp, 32
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 info_ap:
     PRINT_STRING str_info_ap
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 info_geral:
     PRINT_STRING str_info_geral
-    j loop_inteface  # Volta para o início do loop
-limpar_ap:
+    j loop_interface  # Volta para o início do loop
+llimpar_ap:
     PRINT_STRING str_limpar_ap
-    j loop_inteface  # Volta para o início do loop
+    # Boa prática: Salvar os registradores que serão usados na pilha
+    addi $sp, $sp, -28
+    sw   $ra, 0($sp)
+    sw   $s0, 4($sp)   
+    sw   $s1, 8($sp)   
+    sw   $s2, 12($sp)  
+    sw   $s3, 16($sp)  
+    sw   $s4, 20($sp)  
+    sw   $s5, 24($sp)  
+    
+    # Parsing da string, onde procura o hifen, e termina nele
+    # então adiciona 1 ao byte, marcando exatamente o inicio do numero do ap
+    la $s0, input_buffer
+    move $a0, $s0
+    li  $a1, '-'
+    jal encontrar_caracter
+    beq $v0, $0, comando_invalido
+    
+    addi $s1, $v0, 1 # aponta para o inicio do digito do ap
+    
+    # copia manual do numero do ap
+    # não foi o strcpy que deu loop infinito
+    # trocar para strcpy denovo depois
+    la $t0, ap_buffer
+   copia_ap_num_loop:
+    lb   $t1, 0($s1)     # Carrega um byte da fonte (input_buffer)
+    sb   $t1, 0($t0)     # Guarda o byte no destino (ap_buffer)
+    beq  $t1, $zero, copia_ap_num_done # Se o byte for nulo (fim da input_buffer), terminamos a cópia.
+    addi $s1, $s1, 1    # Avança o ponteiro da fonte
+    addi $t0, $t0, 1    # Avança o ponteiro do destino
+    j    copia_ap_num_loop
+copia_ap_num_done:
+
+    # converter a string para inteiro antes de validar o numero do ap
+    la $a0, ap_buffer
+    jal string_to_int
+    move $s1, $v0 # $s1 salva o numero do ap
+    
+    move $a0, $s1
+    jal ap_valido
+    beq $v0, $0, fim_limpar_ap # se o ap e invalido, termina a função
+    
+    move $a0, $s1
+    jal encontrar_indice_ap
+    move $s2, $v0 # s2 = indice do ap
+    
+    # após a validação, começar a limpeza, é simplesmente "zerar" o bloco de memoria daquele apartamento
+    # marcando o status como vazio, limpando os veiculos, retirando o nome dos moradores
+    
+    li $t0, TAMANHO_AP_BLOCO
+    mul $t1, $s2, $t0 # t1 = Indice * 256 tamanho do ap = endereço daquele ap na memoria
+    la $t2, apartamentos
+    add $s0, $t2, $t1 # s0 = endereço base do ap que será varrido
+    
+    # laço de repetição para varrer os 5 moradores
+    li $s3, 0 # i = 0
+laco_repeticao_limpeza:
+    # 1h30 debugando pra descobrir onde tava o loop infinito
+    # tava chamando limpeza_veiculos no lugar de limpeza_ap_veiculos :)
+	beq $s3, 5, limpeza_ap_veiculos # se i = 5, acabou os moradores, então tem que eliminar os carros
+    	
+    	li $t0, TAMANHO_NOME_MORADOR
+    	mul $t1, $s3, $t0
+    	add $a0, $s0, $t1 # inicio do nome do morador
+    	
+    	sb $0, 0($a0) # só colocar um nulo no inicio do nome, é o suficiente para dizer que ele não existe
+    	
+    	addi $s3, $s3, 1 # i++
+    	j laco_repeticao_limpeza
+   	
+limpeza_ap_veiculos:
+add $a0, $s0, OFFSET_VEICULO1 # colocando no alinhamento para o veiculo 1
+li $a1, 40 # tamanho reservado para cada veiculo
+jal limpar_bloco_memoria # taca nulo em um espaço X de memoria
+
+add $a0, $s0, OFFSET_VEICULO2 # colocando no alinhamento para o veiculo 1
+li $a1, 40 # tamanho reservado para cada veiculo
+jal limpar_bloco_memoria # taca nulo em um espaço X de memoria
+
+# coloca o status de ap como vazio, e quantidade de morador como 0
+sb $0, OFFSET_STATUS_AP($s0)
+sb $0, OFFSET_NUM_MORADORES($s0)
+
+PRINT_STRING msg_funcao_limpar_ap
+j fim_limpar_ap
+
+fim_limpar_ap:
+    # Restaura todos os registradores
+    lw   $ra, 0($sp)
+    lw   $s0, 4($sp)
+    lw   $s1, 8($sp)
+    lw   $s2, 12($sp)
+    lw   $s3, 16($sp)
+    lw   $s4, 20($sp)
+    lw   $s5, 24($sp)
+    addi $sp, $sp, 28
+    j loop_inteface
+      
+limpar_bloco_memoria:
+#	inicia um ponteiro e inicia um contador de bytes restantes
+	move $t0, $a0 
+	move $t1, $a1
+laco_repeticao_limpeza_bloco_memoria:
+	beq $t1, $0, fim_laco_limpeza_memoria # sem bytes restantes
+	sb $0, 0($t0) # coloca nulo no byte
+	addi $t0, $t0, 1 # avança o ponteiro do byte a apagar
+	addi $t1, $t1, -1 # reduzi a quantidade de bytes que faltam
+	j laco_repeticao_limpeza_bloco_memoria
+
+fim_laco_limpeza_memoria:
+	jr $ra
 salvar:
     PRINT_STRING str_salvar
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 recarregar:
     PRINT_STRING str_recarregar
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 formatar:
     PRINT_STRING str_formatar
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 sair:  
     PRINT_STRING str_sair
     addi $v0, $zero, 10  # Código de serviço para sair
@@ -819,7 +929,7 @@ ap_invalido:
     jr $ra  # Retorna da função
 ap_vazio:
     PRINT_STRING msg_ap_vazio  # Imprime mensagem de apartamento vazio
-    j loop_inteface # Retorna a função
+    j loop_interface # Retorna a função
 
 encontrar_indice_ap:
     # Registadores usados:
@@ -852,7 +962,7 @@ encontrar_indice_ap:
 
 comando_invalido:
     PRINT_STRING msg_comando_malformado  # Imprime mensagem de comando mal formado
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 # -------------- Funções auxiliares -------------- #
 strncmp:
         beq     $a2, $zero, finish_strncmp   # Se o número máximo de caracteres for 0, retorna 0
