@@ -53,7 +53,6 @@
 .end_macro
 
 .data
-banner: .asciiz "KGP-shell>> "
 apartamentos: .space 10240 # quantidade de apartamentos * 256 bytes
 
 ap_string: .space 10 #
@@ -104,6 +103,14 @@ msg_funcao_sair: .asciiz "Função sair chamada com sucesso!\n"
 msg_lista_funcoes: .asciiz "Comandos disponíveis:\nad_morador - Adicionar morador\n rm_morador - Remover morador\n ad_auto - Adicionar automóvel\n rm_auto - Remover automóvel\ninfo_ap - Informações do apartamento\ninfo_geral - Informações gerais\nlimpar_ap - Limpar apartamento\nsalvar - Salvar dados\nrecarregar - Recarregar dados\nformatar - Formatar sistema\nsair - Sair do sistema\n"
 msg_limpa_terminal: .asciiz "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" # Sequência de escape para limpar o terminal
 
+# -------------- Mensagens de Apoio --------------- #
+str_abre_parenteses: .asciiz "("
+str_fecha_parenteses: .asciiz ")"
+str_vazios: .asciiz "vazio"
+str_nao_vazios: .asciiz "nao vazios"
+str_porcentagem: .asciiz "%"
+str_espaco: .asciiz " "
+banner: .asciiz "\n\nKGP-shell>> "
 
 .text
 # -------------- Função Principal -------------- #
@@ -756,9 +763,99 @@ info_ap:
     PRINT_STRING str_info_ap
     j loop_interface  # Volta para o início do loop
 info_geral:
-    PRINT_STRING str_info_geral
-    j loop_interface  # Volta para o início do loop
-llimpar_ap:
+    #boa prática, guarda logo tudo na pilha, msm o que não for usar
+    addi $sp, $sp, -28
+    sw   $ra, 0($sp)
+    sw   $s0, 4($sp)   
+    sw   $s1, 8($sp)    
+    sw   $s2, 12($sp)  
+    sw   $s3, 16($sp)  
+    sw   $s4, 20($sp)  
+    sw   $s5, 24($sp)  
+    
+    li $s0, 0 # contador de apartamentos usados
+    li $s1, 0 # contador de apartamentos vazios
+    li $s2, 0 # indice i = 0, para o laço de repetição
+    li $s3, 40 # total de apartamentos
+    
+    laco_repeticao_contagem_geral:
+    beq $s2, $s3, fim_contagem_geral # se i == 40, acabou os apartamentos
+    
+    # calcular o endereço do apartamento i
+    # basta fazer i * TAMANHO_AP_BLOCO para achar o endereço na memoria
+    li $t0, TAMANHO_AP_BLOCO
+    mul $t1, $t0, $s2
+    la $t2, apartamentos
+    add $t3, $t2, $t1 # t3 possui agora o endereço base do apartamento
+    # sobrou entao usar o offset do status do ap para ver se é vazio ou não
+    
+    lb $t4, OFFSET_STATUS_AP($t3)
+    
+    beq $t4, $0, ap_esta_vazio
+    addi $s0, $s0, 1 # não é vazio, aumenta a contagem de ocupados
+    j proximo_ap
+    
+    ap_esta_vazio:
+    # se esta vazio, logo aumenta o contador de vazios
+    addi $s1, $s1, 1
+    # sem jump, porque preciso que a contagem de proximo ap venha
+    
+    proximo_ap:
+    # i++
+    addi $s2, $s2, 1
+    j laco_repeticao_contagem_geral
+    
+    fim_contagem_geral:
+    # agora, calcular a % de vazios e não vazios
+    # e imprimir na tela no resultado
+    
+    PRINT_STRING str_nao_vazios
+    PRINT_STRING str_espaco
+    PRINT_INT $s0
+    PRINT_STRING str_espaco
+    
+    # a porcentagem pode ser dada por ( ocupados * 100 ) / 40
+    li $t0, 100
+    mul $t1, $s0, $t0 # ocupados * 100
+    div $t1, $s3 # lembre, S3 guarda 40, então ocupads * 100 / 40
+    mflo $t2 # t2 agora guarda a porcentagem
+    
+    # imprime a porcentagem
+    PRINT_STRING str_abre_parenteses
+    PRINT_INT $t2
+    PRINT_STRING str_espaco
+    PRINT_STRING str_porcentagem
+    PRINT_STRING str_fecha_parenteses
+    
+    PRINT_STRING str_espaco
+    PRINT_STRING str_vazios
+    PRINT_STRING str_espaco
+    PRINT_INT $s1
+    
+    # mesma lógica do lado de cima
+    li $t0, 100
+    mul $t1, $s1, $t0
+    div $t1, $s3
+    mflo $t2 
+    
+    # imprime a porcentagem
+    PRINT_STRING str_espaco
+    PRINT_STRING str_abre_parenteses
+    PRINT_INT $t2
+    PRINT_STRING str_porcentagem
+    PRINT_STRING str_fecha_parenteses
+    
+    lw   $ra, 0($sp)
+    lw   $s0, 4($sp)
+    lw   $s1, 8($sp)
+    lw   $s2, 12($sp)
+    lw   $s3, 16($sp)
+    lw   $s4, 20($sp)
+    lw   $s5, 24($sp)
+    addi $sp, $sp, 28
+    j loop_inteface  # Volta para o início do loop
+    
+limpar_ap:
     PRINT_STRING str_limpar_ap
     # Boa prática: Salvar os registradores que serão usados na pilha
     addi $sp, $sp, -28
