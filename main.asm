@@ -69,21 +69,22 @@ msg_tipo_automovel_invalido: .asciiz    "Falha: tipo invalido\n"
 msg_automovel_nao_encontrado: .asciiz   "Falha: automóvel nao encontrado\n"
 msg_apartamento_limpo: .asciiz          "Apartamento vazio\n"
 msg_principal: .asciiz                  "Bem-vindo ao sistema de gerenciamento de apartamentos!\n"
+msg_ap_vazio: .asciiz 			"Falha: Ap vazio\n"
 
 
 # -------------- Strings para comparação no menu --------------- #
-str_ad_morador:     "ad_morador"
-str_rm_morador:     "rm_morador"
-str_ad_auto:        "ad_auto"
-str_rm_auto:        "rm_auto"
-str_info_ap:        "info_ap"
-str_info_geral:     "info_geral"
-str_limpar_ap:      "limpar_ap"
-str_salvar:         "salvar"
-str_recarregar:     "recarregar"
-str_formatar:       "formatar"
-str_sair:           "sair"
-str_ajuda:          "ajuda"
+str_ad_morador:   .asciiz   "ad_morador"
+str_rm_morador:   .asciiz   "rm_morador"
+str_ad_auto:      .asciiz   "ad_auto"
+str_rm_auto:      .asciiz   "rm_auto"
+str_info_ap:      .asciiz   "info_ap"
+str_info_geral:   .asciiz   "info_geral"
+str_limpar_ap:    .asciiz   "limpar_ap"
+str_salvar:       .asciiz   "salvar"
+str_recarregar:   .asciiz   "recarregar"
+str_formatar:     .asciiz   "formatar"
+str_sair:         .asciiz   "sair"
+str_ajuda:        .asciiz   "ajuda"
 
 # -------------- Tamanho máximo de caracteres para comparação --------------- #
 input_buffer: .space 128
@@ -113,7 +114,6 @@ main:
 loop_inteface:
     PRINT_STRING msg_limpa_terminal # Limpa o terminal
     PRINT_STRING banner #Imprime o banner
-    # Listar funções
 
     # Leitura do comando do usuário
     la $a0, input_buffer  # Carrega o endereço do buffer
@@ -152,37 +152,37 @@ loop_inteface:
     #Info geral
     la $a0, input_buffer
     la $a1, str_info_geral
-    jal strcmp
+    jal strncmp
     beq $v0, $zero, info_geral
 
     # Salvar
     la $a0, input_buffer
     la $a1, str_salvar
-    jal strcmp
+    jal strncmp
     beq $v0, $zero, salvar
     
     # Recarregar
     la $a0, input_buffer
     la $a1, str_recarregar
-    jal strcmp
+    jal strncmp
     beq $v0, $zero, recarregar
     
     # formatar
     la $a0, input_buffer
     la $a1, str_formatar
-    jal strcmp
+    jal strncmp
     beq $v0, $zero, formatar
 
     # ajuda
     la $a0, input_buffer
     la $a1, str_ajuda
-    jal strcmp
+    jal strncmp
     beq $v0, $zero, ajuda
 
     # sair
     la $a0, input_buffer
     la $a1, str_sair
-    jal strcmp
+    jal strncmp
     beq $v0, $zero, sair
     # Se nenhum comando foi reconhecido, imprime mensagem de erro
     PRINT_STRING msg_comando_malformado
@@ -195,6 +195,7 @@ ajuda:
 
 adicionar_morador:
     PRINT_STRING msg_limpa_terminal
+    la $a0, input_buffer
     # Boa prática: Salvar os registradores que serão usados na pilha
     addi $sp, $sp, -28
     sw   $ra, 0($sp)
@@ -228,7 +229,7 @@ adicionar_morador:
     # agora, vamos extrair o numero do apartamento e o nome do morador
     # primeiro, o numero do apartamento
     sb $zero, 0($s2)  # Substitui o segundo '-' por '\0' para terminar a string do AP
-    la $a0, input_buffer  # Carrega o endereço do buffer de entrada
+    la $a0, ap_buffer  # Carrega o endereço do buffer de entrada
     move $a1, $s1
     jal strcpy  # Copia a string do AP para o buffer de entrada
     li $t0, '-'
@@ -242,7 +243,7 @@ adicionar_morador:
 
     # agora, validar todos os dados
     # verificar se o número do apartamento é válido
-    la $a0, input_buffer  # Carrega o endereço do buffer de entrada
+    la $a0, ap_buffer  # Carrega o endereço do buffer de entrada
     jal string_to_int  # Converte a string do AP para inteiro
     move $s4, $v0  # Salva o número do apartamento convertido em $s4
 
@@ -250,7 +251,7 @@ adicionar_morador:
     jal ap_valido  # Verifica se o número do apartamento é válido
     
     move $a0, $s4  # Passa o número do apartamento para $a0
-    jal calcular_indice_ap  # Calcula o índice do apartamento
+    jal encontrar_indice_ap  # Calcula o índice do apartamento
     move $s3, $v0  # Salva o índice do apartamento em $s3
 
     # Após a verificação da validade do ap, vamos a regra de negocio
@@ -265,7 +266,7 @@ adicionar_morador:
     lb $t5, OFFSET_NUM_MORADORES($s0)  # Carrega o endereço do número de moradores
     li $t6, 5 # numero maximo de moradores
     # bge = branch if greater or equal, se o número de moradores for maior ou igual a 5, pula para msg_ap_cheio
-    bge $t5, $t6, msg_ap_cheio  # Se o número de moradores for maior ou igual a 5, pula para msg_ap_cheio
+    bge $t5, $t6, ap_cheio_adicionar  # Se o número de moradores for maior ou igual a 5, pula para msg_ap_cheio
 
     # se o numero de moradores for menor que 5, podemos adicionar ele
     # mas antes, vamos ter que caminhar pelo apartamento
@@ -274,7 +275,7 @@ adicionar_morador:
     li $s5, 0  # Inicializa o contador de moradores
 
     encontrar_lugar:
-    beq $s5, 5, ap_cheio
+    beq $s5, 5, ap_cheio_adicionar
     
     # Calcula o endereço do morador atual
     li $t0, TAMANHO_NOME_MORADOR  # Tamanho de cada nome de morador
@@ -285,7 +286,7 @@ adicionar_morador:
     bne $t2, $0, incrementa_i  # Se o morador não estiver vazio, incrementa o contador
     
     # se não foi pro incrementa_i, então está vazio e pode adicionar
-    la $a1, buffer_nome  # Carrega o endereço do buffer de nome
+    la $a1, nome_buffer  # Carrega o endereço do buffer de nome
     jal strcpy  # Copia o nome do morador para o buffer de nome
 
     # incrementar a contagem de moradores do ap
@@ -313,8 +314,13 @@ adicionar_morador:
     addi $sp, $sp, 28 # Libera o espaço da pilha
     j loop_inteface  # Volta para o início do loop
 
+ap_cheio_adicionar:
+    PRINT_STRING msg_ap_cheio  # Imprime mensagem de apartamento cheio
+    j fim_adicionar_morador  # vai para a restauração dos registradores
+   
 remover_morador:
     PRINT_STRING msg_limpa_terminal
+    la $a0, input_buffer # $a0 aponta para a entrada original
     # Boa prática: Salvar os registradores que serão usados na pilha
     addi $sp, $sp, -28
     sw   $ra, 0($sp)
@@ -328,6 +334,7 @@ remover_morador:
     move $s0, $a0  # Ponteiro do início da string de entrada
     
     # PRIMEIRA ETAPA - Validar o comando, ap e indice
+    move $a0, $s0
     li $a1, '-'  # Caractere a ser encontrado
     jal encontrar_caracter  # Chama a função para encontrar o primeiro '-' 
     beq $v0, $zero, comando_invalido  # Se não encontrou, o comando deve ser inválido
@@ -343,7 +350,7 @@ remover_morador:
     # agora, vamos extrair o numero do apartamento e o nome do morador
     # primeiro, o numero do apartamento
     sb $zero, 0($s2)  # Substitui o segundo '-' por '\0' para terminar a string do AP
-    la $a0, input_buffer  # Carrega o endereço do buffer de entrada
+    la $a0, ap_buffer  # Carrega o endereço do buffer de entrada
     move $a1, $s1
     jal strcpy  # Copia a string do AP para o buffer de entrada
     li $t0, '-'
@@ -357,12 +364,13 @@ remover_morador:
 
     # agora, validar todos os dados
     # verificar se o número do apartamento é válido
-    la $a0, input_buffer  # Carrega o endereço do buffer de entrada
+    la $a0, ap_buffer  # Carrega o endereço do buffer de entrada
     jal string_to_int  # Converte a string do AP para inteiro
     move $s4, $v0  # Salva o número do apartamento convertido em $s4
 
     move $a0, $s4  # Passa o número do apartamento para $a0
     jal ap_valido  # Verifica se o número do apartamento é válido
+    beq $v0, $0, fim_remover_morador # se o ap é invalido, termina a função
     
     move $a0, $s4  # Passa o número do apartamento para $a0
     jal encontrar_indice_ap  # Calcula o índice do apartamento
@@ -376,7 +384,7 @@ remover_morador:
 
     # Verificar se o apartamento está vazio
     lb $t5, OFFSET_NUM_MORADORES($s0)  # Carrega o status do apartamento
-    beq $t5, $zero, ap_vazio  # Se o status for zero, o apartamento está vazio
+    beq $t5, $zero, falha_ap_vazio_remocao  # Se o status for zero, o apartamento está vazio
     
     # TERCEIRA ETAPA - Procurar o morador
     li $s5, 0  # Inicializa o contador de moradores
@@ -389,7 +397,7 @@ remover_morador:
     add $a0, $s0, $t1  # Calcula o endereço do morador atual, $a0 = apartamentos + (índice * tamanho do morador)
 
     la $a1, nome_buffer  # Passa o endereço do nome do morador a ser removido
-    jal strcmp  # Compara o nome do morador atual com o nome a ser removido
+    jal strncmp  # Compara o nome do morador atual com o nome a ser removido
 
     beq $v0, $zero, morador_encontrado  # Se o nome for igual, salta para morador_encontrado
 
@@ -421,13 +429,22 @@ li $t0, OFFSET_VEICULO2
 add $a0, $s0, $t0
 jal limpar_veiculos  # Limpa os veículos do apartamento
 
+j sucesso_remocao # finaliza a função e vai restaurar os registradores
 
- sucesso_remocao:
- PRINT_STRING msg_funcao_remover # mensagem de sucesso
- j fim_remover_morador
+morador_nao_encontrado:
+PRINT_STRING msg_morador_nao_encontrado
+j loop_inteface
+
+falha_ap_vazio_remocao:
+PRINT_STRING msg_ap_vazio
+j fim_remover_morador
+
+sucesso_remocao:
+PRINT_STRING msg_funcao_remover # mensagem de sucesso
+j fim_remover_morador
  
  # recuperar os registradores da pilha
- fim_remover_morador:
+fim_remover_morador:
     lw   $ra, 0($sp)
     lw   $s0, 4($sp)
     lw   $s1, 8($sp)
@@ -450,7 +467,7 @@ limpar_veiculos:
     j loop_limpar_veiculos  # Volta para o início do loop
 fim_limpar_veiculos:
     jr $ra  # Retorna da função
-   
+ 
 adicionar_automovel:
     # Salva registradores na pilha
     addi $sp, $sp, -24
@@ -768,6 +785,7 @@ ap_valido:
 
     # primeiramente, veificar se o andar é válido
     # andar = N / 100, onde 1 <= andar <= 10
+    move $t0, $a0
     li $t4, 100  # Constante para divisão
     div $t0, $t4  # Divide o número do apartamento por 100
     mflo $t1  # Move o quociente (andar) para $t1
@@ -775,12 +793,19 @@ ap_valido:
     blt $t1, 1, ap_invalido # Se andar < 1, AP inválido
     bgt $t1, 10, ap_invalido # Se andar > 10, AP inválido
     
-    # agora, verificar se a unidade é válida
+    li $t4, 10
+    div $t0, $t4
+    mfhi $t2 # $t2 = unidade
+    
+    #validação da unidade
+    blt $t2, 1, ap_invalido
+    bgt $t2, 4, ap_invalido
+    
     # para isso, vamos reconstruir o numero do apartamento
     # numero reconstrudido = andar * 100 + unidade
     li $t4, 100  # Constante para multiplicação
     mul $t3, $t1, $t4  # Multiplica o andar por 100
-    add $t3, $t3, $t0  # Adiciona a unidade ao número reconstruído
+    add $t3, $t3, $t2  # Adiciona a unidade ao número reconstruído
     
     bne $t3, $t0, ap_invalido  # Se o número reconstruído não é igual ao original, AP inválido
 
@@ -794,7 +819,7 @@ ap_invalido:
     jr $ra  # Retorna da função
 ap_vazio:
     PRINT_STRING msg_ap_vazio  # Imprime mensagem de apartamento vazio
-    j loop_inteface  # Volta para o início do loop
+    j loop_inteface # Retorna a função
 
 encontrar_indice_ap:
     # Registadores usados:
@@ -825,16 +850,12 @@ encontrar_indice_ap:
     add $v0, $t3, $t2  # Índice = (andar - 1) * 4 + (unidade - 1)
     jr $ra  # Retorna da função
 
-ap_cheio:
-    PRINT_STRING msg_ap_cheio  # Imprime mensagem de apartamento cheio
-    j loop_inteface  # Volta para o início do loop
-
 comando_invalido:
     PRINT_STRING msg_comando_malformado  # Imprime mensagem de comando mal formado
     j loop_inteface  # Volta para o início do loop
 # -------------- Funções auxiliares -------------- #
 strncmp:
-        beq     $a3, $zero, finish_strncmp   # Se o número máximo de caracteres for 0, retorna 0
+        beq     $a2, $zero, finish_strncmp   # Se o número máximo de caracteres for 0, retorna 0
 
     loop_strncmp:
         lb      $t0, 0($a0)     # Carrega o byte atual da primeira string
@@ -843,8 +864,8 @@ strncmp:
         bne     $t0, $t1, diferentes_strncmp   # Se os bytes forem diferentes, vai para "diferentes"
         beq     $t0, $zero, finish_strncmp  # Se encontrou o caractere nulo, as strings são iguais até aqui
 
-        addi    $a3, $a3, -1    # Decrementa o contador de caracteres a comparar
-        beq     $a3, $zero, finish_strncmp  # Se atingiu o número máximo de caracteres, termina a comparação
+        addi    $a2, $a2, -1    # Decrementa o contador de caracteres a comparar
+        beq     $a2, $zero, finish_strncmp  # Se atingiu o número máximo de caracteres, termina a comparação
 
         addi    $a0, $a0, 1     # Incrementa o ponteiro da primeira string
         addi    $a1, $a1, 1     # Incrementa o ponteiro da segunda string
@@ -858,28 +879,6 @@ strncmp:
     finish_strncmp:
         li      $v0, 0          # Retorna 0 (strings consideradas iguais até o número comparado de caracteres)
         jr      $ra
-
-strcmp:
-    loop_strcmp:
-        lb   $t0, 0($a0)    # Carrega o byte atual da string 1
-        lb   $t1, 0($a1)    # Carrega o byte atual da string 2
-
-        bne  $t0, $t1, diferentes_strcmp  # Se os bytes forem diferentes, pula para 'diferentes'
-        beq  $t0, $zero, finish_strcmp  # Se encontrou caractere nulo, as strings são iguais
-
-        # Incrementa os ponteiros e continua a comparação
-        addi $a0, $a0, 1
-        addi $a1, $a1, 1
-        j    loop_strcmp
-
-    diferentes_strcmp:
-        # Calcula a diferença dos valores ASCII
-        sub  $v0, $t0, $t1
-        jr   $ra            # Retorna para a função chamadora
-
-    finish_strcmp:
-        li   $v0, 0        # Retorna 0 se as strings são iguais
-        jr   $ra
 
 strcpy:
 # como funciona a cópia de uma string:
@@ -951,3 +950,34 @@ encontrar_caracter:
    # Como não foi encontrado, retorna 0
    li $v0, 0          # Marca como não encontrado
     jr $ra          # Retorna da função
+
+string_to_int:
+    addi $sp, $sp, -12 # Reservar espaço na pilha
+    sw $t0, 0($sp) # Salvar $t0 na pilha
+    sw $t1, 4($sp) # Salvar $t1 na pilha
+    sw $t2, 8($sp)  # Salvar $t2 na pilha
+    li $v0, 0 # Inicializar $v0 como 0 (resultado)
+    move $t0, $a0 # Mover o endereço da string para $t0
+
+loop_sti:
+    lb $t1, 0($t0) # Carregar o próximo caractere da string
+    beqz $t1, end_sti # Se for nulo, terminar o loop
+    li $t2, '0' # Carregar o valor do caractere '0'
+    blt $t1, $t2, end_sti # Se for menor que '0', terminar o loop
+    li $t2, '9' # Carregar o valor do caractere '9'
+    bgt $t1, $t2, end_sti # Se for maior que '9', terminar o loop
+    sub $t1, $t1, '0' # Converter o caractere para o valor numérico
+    mul $v0, $v0, 10 # Multiplicar o resultado atual por 10
+    add $v0, $v0, $t1 # Adicionar o valor do dígito atual
+    addi $t0, $t0, 1 # Avançar para o próximo caractere
+    j loop_sti # Repetir o loop
+
+end_sti:
+    lw $t0, 0($sp) # Restaurar $t0 da pilha
+    lw $t1, 4($sp) # Restaurar $t1 da pilha
+    lw $t2, 8($sp) # Restaurar $t2 da pilha
+    addi $sp, $sp, 12 # Liberar espaço na pilha
+    jr $ra # Retornar da função
+
+
+
