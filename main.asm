@@ -401,7 +401,7 @@ remover_morador:
 
     move $a0, $s4  # Passa o número do apartamento para $a0
     jal ap_valido  # Verifica se o número do apartamento é válido
-    beq $v0, $0, fim_remover_morador # se o ap é invalido, termina a função
+    beq $v0, $zero, fim_remover_morador # se o ap é invalido, termina a função
     
     move $a0, $s4  # Passa o número do apartamento para $a0
     jal encontrar_indice_ap  # Calcula o índice do apartamento
@@ -446,7 +446,7 @@ morador_encontrado:
   sb $t5, OFFSET_NUM_MORADORES($s0)  # Atualiza o número de moradores no apartamento
 
  # Verifica se o apartamento ficou vazio 
- bne $t5, $0, sucesso_remocao
+ bne $t5, $zero, sucesso_remocao
  
  # se o contador de moradores for zero, o apartamento deve ser marcado como vazio
  sb $0, OFFSET_STATUS_AP($s0)  # Marca o apartamento como vazio
@@ -729,55 +729,51 @@ remover_automovel:
     sw $s5, 24($sp)  # contador/auxiliar
     sw $s6, 28($sp)  # offset do automóvel
 
+    la $a0, input_buffer
+    move $s0, $a0
+
    # --- ETAPA 1: PARSING ROBUSTO DA STRING DE ENTRADA ---
     # Esta é a correção mais importante. O parsing é feito passo a passo.
     # $s0: ponteiro que avança na string de entrada.
     move $s0, $a0
 
     # 1.1: Saltar o nome do comando "rm_auto"
-    li   $t0, 8 # Comprimento de "rm_auto-"
+    li   $t0, 8 
     add  $s0, $s0, $t0
 
     # 1.2: Extrair AP
     move $a0, $s0
     li   $a1, '-'
     jal  encontrar_caracter
-    beq  $v0, $zero, comando_malformado_handler
+    beq  $v0, $zero, comando_malformado_ad_auto
     move $s1, $v0       # $s1 aponta para o hífen depois do AP
-    sb   $zero, 0($s1)   # Coloca um nulo temporário
-    la   $a0, ap_string
-    move $a1, $s0
-    jal  strcpy
-    li   $t0, '-'
-    sb   $t0, 0($s1)     # Restaura o hífen
-
-    # 1.3: Extrair TIPO
-    addi $s0, $s1, 1    # Avança para depois do hífen do AP
+    la   $a1, ap_buffer
     move $a0, $s0
-    jal  encontrar_caracter
-    beq  $v0, $zero, comando_malformado_handler
-    move $s1, $v0       # $s1 aponta para o hífen depois do TIPO
-    sb   $zero, 0($s1)
-    la   $a0, tipo_string
-    move $a1, $s0
-    jal  strcpy
-    li   $t0, '-'
-    sb   $t0, 0($s1)
+    jal  copiar_ate_hifen
 
-    # 1.4: Extrair MODELO
+    # Extrair TIPO
     addi $s0, $s1, 1
     move $a0, $s0
+    li   $a1, '-'
     jal  encontrar_caracter
-    beq  $v0, $zero, comando_malformado_handler
-    move $s1, $v0       # $s1 aponta para o hífen depois do MODELO
-    sb   $zero, 0($s1)
-    la   $a0, buffer_modelo_string
-    move $a1, $s0
-    jal  strcpy
-    li   $t0, '-'
-    sb   $t0, 0($s1)
+    beq  $v0, $zero, comando_malformado_ad_auto
+    move $s1, $v0
+    la   $a1, tipo_string
+    move $a0, $s0
+    jal  copiar_ate_hifen
 
-    # 1.5: Extrair COR (é o resto da string)
+    # Extrair MODELO
+    addi $s0, $s1, 1
+    move $a0, $s0
+    li   $a1, '-'
+    jal  encontrar_caracter
+    beq  $v0, $zero, comando_malformado_ad_auto
+    move $s1, $v0
+    la   $a1, buffer_modelo_string
+    move $a0, $s0
+    jal  copiar_ate_hifen
+
+    # Extrair COR (resto da string)
     addi $s0, $s1, 1
     la   $a0, buffer_cor_string
     move $a1, $s0
@@ -785,7 +781,7 @@ remover_automovel:
 
     # --- ETAPA 2: VALIDAÇÃO DOS DADOS DE ENTRADA ---
     # 2.1: Validar AP
-    la   $a0, ap_string
+    la   $a0, ap_buffer
     jal  string_to_int
     move $s1, $v0
     move $a0, $s1
@@ -814,13 +810,15 @@ tipo_ok:
 
     # 3.2: Verificar Slot 1
     addi  $s3, $s0, OFFSET_VEICULO1 # $s3 = endereço do slot 1
-    jal  verificar_slot_veiculo
-    bne  $v0, $zero, veiculo_encontrado_handler # Se v0=1, encontrou!
+    move  $a0, $s3                  # Passa o endereço do slot para $a0
+    jal   verificar_slot_veiculo
+    bne   $v0, $zero, veiculo_encontrado_handler # Se v0=1, encontrou!
 
     # 3.3: Se não encontrou no slot 1, verificar Slot 2
     addi  $s3, $s0, OFFSET_VEICULO2 # $s3 = endereço do slot 2
-    jal  verificar_slot_veiculo
-    bne  $v0, $zero, veiculo_encontrado_handler
+    move  $a0, $s3                  # Passa o endereço do slot para $a0
+    jal   verificar_slot_veiculo
+    bne   $v0, $zero, veiculo_encontrado_handler
 
     # 3.4: Se não encontrou em nenhum slot, falha.
     j    auto_nao_encontrado_handler
@@ -841,34 +839,43 @@ veiculo_encontrado_handler:
 # $a0: endereço do slot do veículo.
 # Retorna: $v0 = 1 se corresponde, $v0 = 0 caso contrário.
 verificar_slot_veiculo:
+    # Salva registradores que serão modificados
+    addi $sp, $sp, -16
+    sw $t0, 0($sp)
+    sw $t1, 4($sp)
+    sw $t9, 8($sp)
+    sw $ra, 12($sp)
+    
+    move $t9, $a0  # Preserva o endereço do slot em $t9
+    
     # Compara o TIPO
-    lb   $t0, OFFSET_VEICULO_TIPO($a0)
+    lb   $t0, OFFSET_VEICULO_TIPO($t9)
     bne  $t0, $s2, nao_corresponde # $s2 tem o tipo procurado
 
     # Compara o MODELO
-    addi  $a1, $a0, OFFSET_VEICULO_MODELO
-    la   $a0, buffer_modelo_string
-    # Troca $a0 e $a1 para a chamada de strcmp
-    move $t5, $a0
-    move $a0, $a1
-    move $a1, $t5
+    addi $a0, $t9, OFFSET_VEICULO_MODELO
+    la   $a1, buffer_modelo_string
     jal  strcmp
     bne  $v0, $zero, nao_corresponde
 
     # Compara a COR
-    addi  $a1, $a0, OFFSET_VEICULO_COR
-    la   $a0, buffer_cor_string
-    move $t5, $a0
-    move $a0, $a1
-    move $a1, $t5
+    addi $a0, $t9, OFFSET_VEICULO_COR
+    la   $a1, buffer_cor_string
     jal  strcmp
     bne  $v0, $zero, nao_corresponde
 
     # Se tudo correspondeu:
     li   $v0, 1
-    jr   $ra
+    j    fim_verificar_slot
 nao_corresponde:
     li   $v0, 0
+fim_verificar_slot:
+    # Restaura registradores
+    lw $t0, 0($sp)
+    lw $t1, 4($sp)
+    lw $t9, 8($sp)
+    lw $ra, 12($sp)
+    addi $sp, $sp, 16
     jr   $ra
 
 # --- SUB-ROTINA PARA LIMPAR MEMÓRIA ---
