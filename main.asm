@@ -7,6 +7,7 @@
 #
 ####################################################################
 
+
 # ================================== CONSTANTES DA ESTRUTURA DE DADOS ================================== #
 #   Será usado .eqv, para deixar o código mais fácil de ser lido.
 .eqv TAMANHO_AP_BLOCO 256 # Espaço reservado para um único apartamento
@@ -95,6 +96,15 @@ str_recarregar:   .asciiz   "recarregar"
 str_formatar:     .asciiz   "formatar"
 str_sair:         .asciiz   "sair"
 str_ajuda:        .asciiz   "ajuda"
+str_all:                .asciiz "all"
+str_ap:               .asciiz "AP: "
+str_moradores:        .asciiz "\nMoradores:\n"
+str_carro:            .asciiz "\tCarro:\n"
+str_moto:             .asciiz "\tMoto:\n"
+str_modelo:           .asciiz "\t\tModelo: "
+str_cor:              .asciiz "\t\tCor: "
+indentacao: .asciiz "\t"
+nova_linha: .asciiz "\n"
 
 # -------------- Tamanho máximo de caracteres para comparação --------------- #
 input_buffer: .space 128
@@ -911,8 +921,267 @@ fim_rm_auto:
     j loop_interface  # Volta para o início do loop
 
 info_ap:
-    PRINT_STRING str_info_ap
+    # Salva os registradores na pilha
+    addi $sp, $sp, -20
+    sw   $ra, 0($sp)
+    sw   $s0, 4($sp)   # $s0 guarda o ponteiro para a opçao
+    sw   $s1, 8($sp)   # $s1 é o contador de loop pra quando a opção for 'all'
+    sw   $s2, 12($sp)  # $s2  é o número do apartamento
+    sw   $s3, 16($sp)  # $s3 é o indice do apartamento ( 0 a 39)
+
+    #encontra o primeiro caracter '-', depois é a opçao
+    la $a0, input_buffer
+    li $a1, '-'
+    jal encontrar_caracter
+    beq $v0, $zero, comando_invalido # se não encontrou o caracter '-'
+
+    addi $s0, $v0, 1 # s0 agora aponta para o primeiro caracter depois do '-'
+   
+    # Verifica se é a opção 'all' ou um número de apartamento
+    move $a0, $s0 # $a0 aponta para o primeiro caracter depois do '-'
+    la $a1, str_all # carrega a string 'all' para comparação
+    li $a2, 3 # tamanho da string 'all'
+    jal strncmp # compara a string 'all' com o que foi digitado
+    beq $v0, $zero, info_ap_all # se for 'all', chama a função info_ap_all
+
+info_ap_unico:
+    # Converte o número do apartamento de string para inteiro
+    move $a0, $s0 # $a0 aponta para o número do apartamento
+    jal string_to_int # converte a string para inteiro
+    move $s2, $v0 # $s2 agora guarda o número do apartamento
+
+    # Verifica se o apartamento é válido (andar entre 1-10, número entre 1-4)
+    move $a0, $s2 # $a0 recebe o número do apartamento
+    jal ap_valido # verifica se o apartamento é válido
+    beq $v0, $zero, fim_info_ap # se não for válido, chama a função fim_info_ap
+
+    # encontra o índice do apartamento de (0 a 39)
+    move $a0, $s2 # $a0 recebe o número do apartamento
+    jal encontrar_indice_ap # encontra o índice do apartamento
+    move $s3, $v0 # $s3 agora guarda o índice do apartamento
+
+    #chama a função de impressão do apartamento
+    move $a0, $s3 # $a0 recebe o índice do apartamento para a função
+    jal imprimir_informacao_ap
+
+    j fim_info_ap # chama a função fim_info_ap
+
+info_ap_all:
+    # Se for 'all', percorre todos os apartamentos
+    li $s1, 0 # contador de apartamentos
+
+loop_info_ap_all:
+    #para quando s1 for 40, ou seja, percorreu todos os apartamentos
+    li $t0, 40 #condição de parada do loop
+    beq $s1, $t0, fim_info_ap # se s1 = 40, sai do loop
+
+    #chama a função de impressão do apartamento
+
+    move $a0, $s1 # $a0 recebe o índice do apartamento
+    jal imprimir_informacao_ap
+
+
+    addi $s1, $s1, 1 # incrementa o contador de apartamentos
+    j loop_info_ap_all # volta para o início do loop
+
+fim_info_ap:
+    # Recupera os registradores da pilha
+    lw   $ra, 0($sp)
+    lw   $s0, 4($sp)  
+    lw   $s1, 8($sp)   
+    lw   $s2, 12($sp)  
+    lw   $s3, 16($sp)  
+    addi $sp, $sp, 20 # libera a pilha
     j loop_interface  # Volta para o início do loop
+
+
+# Função para imprimir as informações de um apartamento
+    
+imprimir_informacao_ap:
+    #boa prática: salvar os registradores que serão usados na pilha
+
+    addi $sp, $sp, -24
+    sw   $ra, 0($sp)
+    sw   $s0, 4($sp)   #s0 é usado para armazenar o endereço base do Ap
+    sw   $s1, 8($sp)   #s1 é usado para armazenar o indice do Ap
+    sw   $s2, 12($sp)  #se é o contador de loop dos moradores
+    sw   $s3, 16($sp)  #s3 é a flag para saber se o label "Moto:" já foi impresso
+    sw   $s4, 20($sp)  #s4 é o numero do Ap para imprimir
+
+    move $s1, $a0 # indice do Ap salvo em s1
+
+    li $t0, TAMANHO_AP_BLOCO #carrega o tamanho do bloco do Ap em t0 (256)
+    mul $t1, $s1, $t0  #t1 = indice do Ap * tamanho do bloco
+    la $t2, apartamentos #carrega o endereço base do vetor de apartamentos em t2
+    add $s0, $t2, $t1  #s0 = endereço base do Ap selecionado
+
+
+    #verifica se o Ap está vazio, se estiver, imprime mensagem e sai
+
+    lb $t0, OFFSET_STATUS_AP($s0) #carrega o status do Ap
+    beq $t0, $zero, ap_esta_vazio2
+
+
+    #converte o indice do Ap para string e imprime
+
+    move $a0, $s1 #move o indice do Ap para $a0
+    jal indice_para_ap_numero #converte o indice do Ap para string
+    move $s4, $v0 #salva o numero do Ap convertido em s4
+
+
+    #imprime o Cabeçalho do Ap 
+
+    PRINT_STRING str_ap
+    PRINT_INT $s4 #imprime o numero do Ap
+    PRINT_STRING str_moradores
+
+
+    #loop para impressão dos moradores do Ap
+
+    li $s2, 0 #contador de moradores inicializado em 0
+
+loop_moradores:
+ 
+    li $t0, 5 #número máximo de moradores por apartamento
+    beq $s2, $t0, fim_loop_moradores #se contador de moradores for 5, sai do loop
+
+    #calculo do endereço do nome do morador atual
+
+    li $t0, TAMANHO_NOME_MORADOR # 32 bytes
+    mul $t1, $s2, $t0 # t1 = contador de moradores * tamanho do nome do morador
+    add $a0, $s0, $t1 # a0 = endereço base do Ap + offset do morador atual
+
+    #verifica se o slot do morador está vazio(se o primeiro byte do nome não é nulo)
+
+    lb $t0, 0($a0) #carrega o primeiro byte do nome do morador
+    beq $t0, $zero, proximo_morador #se for nulo, vai para o próximo morador
+
+    #Imprime o nome do morador
+
+    PRINT_STRING indentacao
+    li   $v0, 4 
+    syscall
+    PRINT_STRING nova_linha
+
+proximo_morador:
+
+    addi $s2, $s2, 1 #incrementa o contador de moradores
+    j loop_moradores #volta para o início do loop
+
+fim_loop_moradores:
+
+    # impressão dos veiculos do Ap
+
+    li $s3, 0  #0 = Flag para "Moto:" ainda não impresso, 1 =  já impresso
+
+    #verifica o veiculo 1
+
+    lb $t0, OFFSET_VEICULO1_TIPO($s0) #carrega o tipo do veiculo 1
+    beq $t0, 'c', imprime_carro1 #se for c, é um carro.
+    beq $t0, 'm', imprime_moto1 #se for m, é uma moto.
+    j verifica_veiculo2 #se não for nenhum dos dois, vai para o próximo veiculo
+
+imprime_carro1:
+
+    PRINT_STRING str_carro #imprime "Carro:"
+    addi $a0, $s0, OFFSET_VEICULO1_MODELO #carrega o endereço do modelo do veiculo 1
+    PRINT_STRING str_modelo
+    li   $v0, 4 #imprime o modelo do veiculo 1
+    syscall     
+    PRINT_STRING nova_linha
+    add $a0, $s0, OFFSET_VEICULO1_COR #carrega o endereço da cor do veiculo 1
+    PRINT_STRING str_cor
+    li   $v0, 4  #imprime a cor do veiculo 1
+    syscall
+    PRINT_STRING nova_linha
+    j verifica_veiculo2 #vai para o próximo veiculo
+
+imprime_moto1:
+
+    beq $s3, 1 , imprime_dados_moto1 #se já tiver impresso "Moto:", vai para imprimir os dados da moto
+    PRINT_STRING str_moto #imprime "Moto:"
+    li $s3, 1 #marca que "Moto:" já foi impresso
+
+imprime_dados_moto1:
+
+    addi $a0, $s0, OFFSET_VEICULO1_MODELO #carrega o endereço do modelo da moto 1
+    PRINT_STRING str_modelo
+    li   $v0, 4 #imprime o modelo da moto 1
+    syscall
+    PRINT_STRING nova_linha
+    add $a0, $s0, OFFSET_VEICULO1_COR #carrega o endereço da cor da moto 1
+    PRINT_STRING str_cor
+    li   $v0, 4 #imprime a cor da moto 1
+    syscall
+    PRINT_STRING nova_linha
+
+verifica_veiculo2:
+
+    #verifica o veiculo 2 (só é moto se o 1 for moto também)
+    lb $t0, OFFSET_VEICULO2_TIPO($s0) #carrega o tipo do veiculo 2
+    bne $t0, 'm', fim_impressao_ap #se não for moto, sai da impressão do Ap
+
+imprimir_moto2:
+
+    beq $s3, 1 , imprime_dados_moto2 #se já tiver impresso "Moto:", vai para imprimir os dados da moto
+    PRINT_STRING str_moto #imprime "Moto:"
+    li $s3, 1 #marca que "Moto:" já foi impresso
+
+imprime_dados_moto2:
+    addi $a0, $s0, OFFSET_VEICULO2_MODELO #carrega o endereço do modelo da moto 2
+    PRINT_STRING str_modelo
+    li   $v0, 4 #imprime o modelo da moto 2
+    syscall
+    PRINT_STRING nova_linha
+    add $a0, $s0, OFFSET_VEICULO2_COR #carrega o endereço da cor da moto 2
+    PRINT_STRING str_cor
+    li   $v0, 4 #imprime a cor da moto 2
+    syscall
+    PRINT_STRING nova_linha
+    j fim_impressao_ap #sai da impressão do Ap
+
+ap_esta_vazio2:
+    PRINT_STRING msg_apartamento_limpo
+
+fim_impressao_ap:
+
+    PRINT_STRING  nova_linha
+
+    #boa prática: restaurar os registradores da pilha
+    lw $ra, 0($sp)
+    lw $s0, 4($sp)
+    lw $s1, 8($sp)
+    lw $s2, 12($sp)
+    lw $s3, 16($sp)
+    lw $s4, 20($sp)
+    addi $sp, $sp, 24 #desaloca a pilha
+    jr $ra #retorna da função
+
+
+
+
+    #FUNÇÕES AUXILIARES
+
+    indice_para_ap_numero:
+     # andar = (indice / 4) + 1
+
+    li $t0, 4 #carrega o divisor 4
+    divu $a0, $t0 #divide o indice por 4
+    mflo $t1   # t1 = quociente (andar base 0)
+    addi $t1, $t1, 1 #incrementa para andar base 1
+
+    # unidade = (indice % 4) + 1
+    mfhi $t2   # t2 = resto (unidade base 0)
+    addi $t2, $t2, 1 #incrementa para unidade base 1
+
+    #numero do apartamento = andar * 100 + unidade
+    li $t0, 100 #carrega o valor 100
+    mul $t1, $t1, $t0 # t1 = andar * 100
+    add $v0, $t1, $t2 # v0 = numero do apartamento
+
+    jr $ra #retorna da função
+
+
 info_geral:
 #boa prática, guarda logo tudo na pilha, msm o que não for usar
     addi $sp, $sp, -28
