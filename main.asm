@@ -69,7 +69,10 @@ msg_automovel_nao_encontrado: .asciiz   "Falha: automóvel nao encontrado\n"
 msg_apartamento_limpo: .asciiz          "Apartamento vazio\n"
 msg_principal: .asciiz                  "Bem-vindo ao sistema de gerenciamento de apartamentos!\n"
 msg_ap_vazio: .asciiz 			"Falha: Ap vazio\n"
-
+sucesso_salvamento: .asciiz 		"\nSucesso ao salvar!"
+falha_salvamento: .asciiz 		"\n Falha ao salvar!"
+sucesso_recarregar: .asciiz "\nSucesso ao recarregar"
+falha_recarregar: .asciiz "\nFalha ao recarregar"
 
 # -------------- Strings para comparação no menu --------------- #
 str_ad_morador:   .asciiz   "ad_morador"
@@ -112,6 +115,7 @@ str_nao_vazios: .asciiz "nao vazios"
 str_porcentagem: .asciiz "%"
 str_espaco: .asciiz " "
 str_nova_linha: .asciiz "\n"
+nome_banco_dados: .asciiz "condominio.dat"
 banner: .asciiz "\n\nKGP-shell>> "
 .text
 # -------------- Função Principal -------------- #
@@ -969,11 +973,93 @@ laco_repeticao_limpeza_bloco_memoria:
 fim_laco_limpeza_memoria:
 	jr $ra
 salvar:
-    PRINT_STRING str_salvar
-    j loop_interface  # Volta para o início do loop
+# a ideia é simples, como o prédio é um espaço de 10000 bytes seguido na memoria
+# é so colocar o syscall de salvar arquivo, com o endereço base do prédio
+# e o numero de caracter a ser escrito sendo o tamanho do prédio em bytes
+	addi $sp, $sp, -4
+	sw $s0, 0($sp) # syscall de escrever arquivo exige um "file descriptor"
+	
+	# abertura do arquivo
+	li $v0, 13
+	la $a0, nome_banco_dados
+	li $a1, 1 # cria um novo banco por cima do que existe ou não
+	syscall
+	
+	# a descrição desse syscall, diz que caso ocorra um erro
+	# o valor retornado em $v0 é negativo
+	
+	blt $v0, 0, erro_salvamento
+	move $s0, $v0 # muda o endereço do "file decriptor"
+	
+	# agora escrever o bloco de 10240 no arquivo
+	li $v0, 15
+	move $a0, $s0
+	la $a1, apartamentos
+	li $a2, 10240
+	syscall
+	
+	# em todo código de programação
+	# deve fechar o arquivo para garantir a integridade
+	
+	# fechamento do arquivo
+	li $v0, 16
+	move $a0, $s0
+	syscall
+	
+	PRINT_STRING sucesso_salvamento
+	j fim_salvar
+	
+	erro_salvamento:
+	PRINT_STRING falha_salvamento
+	
+	fim_salvar:
+	lw $s0, 0($sp)
+	addi $sp, $sp, 4
+	j loop_inteface
+	
 recarregar:
-    PRINT_STRING str_recarregar
-    j loop_interface  # Volta para o início do loop
+# é a logica inversa do salvar
+# abrimos o arquivo
+# lemos para o endereço base de apartamentos
+
+	addi $sp, $sp, -4
+	sw $s0, 0($sp) # syscall de escrever arquivo exige um "file descriptor"
+	
+	# abertura do arquivo
+	li $v0, 13
+	la $a0, nome_banco_dados
+	li $a1, 0 # 0 significa read-only, senão vai apagar o banco existente
+	syscall
+
+	# a descrição desse syscall, diz que caso ocorra um erro
+	# o valor retornado em $v0 é negativo
+	
+	blt $v0, 0, erro_salvamento
+	move $s0, $v0 # muda o endereço do "file decriptor"
+    	
+    	#ler para o bloco de memoria apartamentos
+    	li $v0, 14 # código para leitura dr arquivo
+    	move $a0, $s0 # "file decriptor" do syscall
+    	la $a1, apartamentos # endereço base do bloco de memoria
+    	li $a2, 10240 # quantidade a ser lida ( 256 bytes * 40 )
+    	syscall
+    	
+    	#fechar arquivo
+    	li $v0, 16
+    	move $a0, $s0
+    	syscall
+    	
+    	PRINT_STRING sucesso_recarregar
+    	j fim_recarregar
+    	
+    erro_recarregar:
+    PRINT_STRING falha_recarregar
+   
+    
+    fim_recarregar:
+    lw $s0, 0($sp)
+    addi $sp, $sp, 4
+    j loop_inteface
 formatar: 
 # Carrega o endereço base da nossa estrutura de dados de apartamentos em $t0.
     la $t0, apartamentos  # Carrega o endereço base dos apartamentos
