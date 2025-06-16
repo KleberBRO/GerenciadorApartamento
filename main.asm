@@ -24,6 +24,10 @@
 .eqv OFFSET_STATUS_AP 240 # Somente um byte, será usado para representar se o AP esta vazio ou cheio
 .eqv OFFSET_NUM_MORADORES 241 # Representa a quantidade de moradores.
 
+.eqv OFFSET_VEICULO_TIPO 0      # Offset do tipo dentro do bloco do veículo
+.eqv OFFSET_VEICULO_MODELO 1    # Offset do modelo dentro do bloco do veículo
+.eqv OFFSET_VEICULO_COR 21      # Offset da cor dentro do bloco do veículo
+.eqv TAMANHO_VEICULO 40         # Tamanho total do bloco do veículo
 
 .eqv OFFSET_VEICULO1_TIPO 160 # 1 byte para o tipo, sera C ou M
 .eqv OFFSET_VEICULO1_MODELO 161 # 20 bytes para o modelo do veiculo
@@ -57,6 +61,10 @@ apartamentos: .space 10240 # quantidade de apartamentos * 256 bytes
 
 ap_string: .space 10 #
 nome_string: .space 50 #
+
+tipo_string: .space 5
+buffer_modelo_string: .space 20
+buffer_cor_string: .space 20
 
 # -------------- Mensagens de Erro --------------- #
 msg_ap_invalido:.asciiz                 "Falha: AP invalido\n"
@@ -104,8 +112,9 @@ msg_funcao_recarregar: .asciiz "Função recarregar chamada com sucesso!\n"
 msg_funcao_formatar: .asciiz "Função formatar chamada com sucesso!\n"
 msg_funcao_sair: .asciiz "Função sair chamada com sucesso!\n"
 msg_lista_funcoes: .asciiz "Comandos disponíveis:\nad_morador - Adicionar morador\n rm_morador - Remover morador\n ad_auto - Adicionar automóvel\n rm_auto - Remover automóvel\ninfo_ap - Informações do apartamento\ninfo_geral - Informações gerais\nlimpar_ap - Limpar apartamento\nsalvar - Salvar dados\nrecarregar - Recarregar dados\nformatar - Formatar sistema\nsair - Sair do sistema\n"
-msg_limpa_terminal: .asciiz "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" # Sequência de escape para limpar o terminal
+msg_limpa_terminal: .asciiz "\n" # Sequência de escape para limpar o terminal
 msg_sucesso_formatado: .asciiz "\nApartamento formatado"
+msg_sucesso_ad_auto: .asciiz "Automóvel adicionado com sucesso!\n"
 
 # -------------- Mensagens de Apoio --------------- #
 str_abre_parenteses: .asciiz "("
@@ -482,87 +491,222 @@ fim_limpar_veiculos:
  
 adicionar_automovel:
     # Salva registradores na pilha
-    addi $sp, $sp, -24
+    addi $sp, $sp, -40
     sw $ra, 0($sp)
     sw $s0, 4($sp)   # endereço base do AP
     sw $s1, 8($sp)   # número do AP
-    sw $s2, 12($sp)  # ponteiro para dados do automóvel
-    sw $s3, 16($sp)  # contador/auxiliar
-    sw $s4, 20($sp)  # offset do automóvel
-    
-    la $t0, input_buffer    # Carrega o endereço do buffer de entrada
-    li $t1, 8
-    add $s1, $t0, $t1       # Avança o ponteiro para o início do comando
+    sw $s2, 12($sp)  # tipo do automóvel
+    sw $s3, 16($sp)  # modelo
+    sw $s4, 20($sp)  # cor
+    sw $s5, 24($sp)  # contador/auxiliar
+    sw $s6, 28($sp)  # offset do automóvel
+    sw $s7, 32($sp)  # slot usado
+    sw $t8, 36($sp)  # temporário
 
-    # 2. Encontrar o próximo '-' (fim do número do AP)
-    move $a0, $s1           # Passa o endereço da string do AP para $a0
-    li $a1, '-'             # Caractere a ser encontrado
-    jal encontrar_caracter  # Chama a função para encontrar o próximo '-'
-    beq $v0, $zero, comando_invalido  # Se não encontrou, o comando deve ser inválido
-    move $s2, $v0           # Salva o endereço do próximo '-' em $s2
+    la $a0, input_buffer # $a0 aponta para input_buffer
 
-    # 3. Substituir '-' por '\0' para isolar o número do AP
-    sb $zero, 0($s2)  # Substitui o '-' por '\0' para isolar o número do AP
+    # --- ETAPA 1: PARSING DA STRING DE ENTRADA ---
+    # $a0 já aponta para input_buffer
+    move $s0, $a0
 
-    # 4. Converter número do AP (string) para inteiro
-    move $a0, $s1       # Passa o endereço da string do AP para $a0
-    jal string_to_int   # Chama a função para converter a string do AP para inteiro
-    move $s5, $v0       # Salva o número do AP convertido em $s5
+    # 1.1: Saltar o nome do comando "ad_auto"
+    li   $t0, 8 # Comprimento de "ad_auto-"
+    add  $s0, $s0, $t0
 
-    # 5. $s2 = início do tipo (logo após o '-')
-    addi $s2, $s2, 1  # Avança o ponteiro para o início do tipo do automóvel
-    
-    # 6. Encontrar próximo '-' (fim do tipo)
-    move $a0, $s2       # Passa o endereço do tipo do automóvel para $a0
-    li $a1, '-'         # Caractere a ser encontrado
-    jal encontrar_caracter  # Chama a função para encontrar o próximo '-'
-    beq $v0, $zero, comando_invalido  # Se não encontrou, o comando deve ser inválido
-    move $t3, $v0       # Salva o endereço do próximo '-' em $t3
-    sb $zero, 0($t3)    # Substitui o '-' por '\0' para isolar o tipo do automóvel
-    addi $t3, $t3, 1    # Avança o ponteiro para o início da cor do automóvel
-    
-    # 7. Encontrar próximo '-' (fim do modelo)
-    move $a0, $t3           # Passa o endereço da cor do automóvel para $a0
-    li $a1, '-'             # Caractere a ser encontrado
-    jal encontrar_caracter  # Chama a função para encontrar o próximo '-'
-    beq $v0, $zero, comando_invalido  # Se não encontrou, o comando deve ser inválido
-    move $t4, $v0           # Salva o endereço do próximo '-' em $t4
+    # 1.2: Extrair AP
+    move $a0, $s0
+    li   $a1, '-'
+    jal  encontrar_caracter
+    beq  $v0, $zero, comando_malformado_ad_auto
+    move $s1, $v0       # $s1 aponta para o hífen depois do AP
+    la   $a1, ap_buffer
+    move $a0, $s0
+    jal  copiar_ate_hifen
 
-    sb $zero, 0($t4)  # Substitui o '-' por '\0' para isolar o modelo do automóvel
-    addi $t4, $t4, 1  # Avança o ponteiro para o início do modelo do automóvel
-    
-    # 8. Calcular endereço base do AP
-    la $t5, apartamentos        # Carrega o endereço base dos apartamentos
-    li $t6, TAMANHO_AP_BLOCO    # Tamanho de cada bloco de apartamento
-    mul $t7, $s5, $t6           # Calcula o deslocamento do apartamento
-    add $s0, $t5, $t7           # Calcula o endereço base do apartamento
+    # Extrair TIPO
+    addi $s0, $s1, 1
+    move $a0, $s0
+    li   $a1, '-'
+    jal  encontrar_caracter
+    beq  $v0, $zero, comando_malformado_ad_auto
+    move $s1, $v0
+    la   $a1, tipo_string
+    move $a0, $s0
+    jal  copiar_ate_hifen
 
-    # 9. Verificar vaga para automóvel
-    addi $t8, $s0, OFFSET_VEICULO1      # Endereço do primeiro veículo no apartamento
-    lb $t9, 0($t8)                      # Lê o status do primeiro veículo
-    beqz $t9, slot1_vazio  # Se o primeiro veículo estiver vazio, pula para slot1_vazio
+    # Extrair MODELO
+    addi $s0, $s1, 1
+    move $a0, $s0
+    li   $a1, '-'
+    jal  encontrar_caracter
+    beq  $v0, $zero, comando_malformado_ad_auto
+    move $s1, $v0
+    la   $a1, ap_string
+    move $a0, $s0
+    jal  copiar_ate_hifen
 
-    addi $t8, $s0, OFFSET_VEICULO2      # Endereço do segundo veículo no apartamento
-    lb $t9, 0($t8)                      # Lê o status do segundo veículo
-    beqz $t9, slot2_vazio  # Se o segundo veículo estiver vazio, pula para slot2_vazio
+    # Extrair COR (resto da string)
+    addi $s0, $s1, 1
+    la   $a0, nome_string
+    move $a1, $s0
+    jal  strcpy
 
-    PRINT_STRING msg_ap_cheio   # Imprime mensagem de apartamento cheio
-    j fim_adicionar_auto        # Salta para o fim da função
-    
-    slot1_vazio:
-        addi $t8, $s0, OFFSET_VEICULO1  # Endereço do primeiro veículo no apartamento
-        j salvar_auto
-    
-    slot2_vazio:
-        addi $t8, $s0, OFFSET_VEICULO2  # Endereço do segundo veículo no apartamento
-    
-    salvar_auto:
-        # copia tipo (até 12 bytes)
-        move $a0, $s2  # Passa o endereço do tipo do automóvel para $a0
-        li
-        
-    
-    j loop_interface  # Volta para o início do loop
+    # --- ETAPA 2: VALIDAÇÃO DOS DADOS DE ENTRADA ---
+    # 2.1: Validar AP
+    la   $a0, ap_buffer
+    jal  string_to_int
+    move $s1, $v0
+    move $a0, $s1
+    jal  ap_valido
+    beq  $v0, $zero, ap_invalido_ad_auto
+
+    la   $t0, tipo_string
+    lb   $s2, 0($t0)
+
+    # 2.2: Validar TIPO
+    li   $t0, 'c'
+    li   $t1, 'm'
+    beq  $s2, $t0, tipo_ok_ad_auto
+    beq  $s2, $t1, tipo_ok_ad_auto
+    j    tipo_invalido_ad_auto
+tipo_ok_ad_auto:
+
+    # --- ETAPA 3: CALCULAR ENDEREÇO DO APARTAMENTO ---
+    move $a0, $s1
+    jal  encontrar_indice_ap
+    li   $t0, TAMANHO_AP_BLOCO
+    mul  $t1, $v0, $t0
+    la   $t2, apartamentos
+    add  $s0, $t2, $t1 # $s0 = endereço base do AP
+
+    # --- ETAPA 4: VERIFICAR LIMITES DE AUTOMÓVEIS ---
+    # Para carro: só pode 1. Para moto: até 2.
+    # Verifica slots de veículos
+    li   $t3, 0 # contador de motos
+    li   $t4, 0 # flag carro já existe
+
+    # Slot 1
+    addi $t5, $s0, OFFSET_VEICULO1
+    lb   $t6, 0($t5) # tipo do slot 1
+    beq  $t6, $zero, slot1_vazio_ad_auto
+    li   $t7, 'm'
+    beq  $t6, $t7, conta_moto1_ad_auto
+    li   $t7, 'c'
+    beq  $t6, $t7, marca_carro_ad_auto
+    j    slot2_check_ad_auto
+conta_moto1_ad_auto:
+    addi $t3, $t3, 1
+    j slot2_check_ad_auto
+marca_carro_ad_auto:
+    li $t4, 1
+    j slot2_check_ad_auto
+slot1_vazio_ad_auto:
+    # salva endereço do slot vazio em $s7
+    move $s7, $t5
+    li $t8, 1 # flag: achou slot vazio
+    j verifica_tipo_ad_auto
+
+slot2_check_ad_auto:
+    # Slot 2
+    addi $t5, $s0, OFFSET_VEICULO2
+    lb   $t6, 0($t5)
+    beq  $t6, $zero, slot2_vazio_ad_auto
+    li   $t7, 'm'
+    beq  $t6, $t7, conta_moto2_ad_auto
+    li   $t7, 'c'
+    beq  $t6, $t7, marca_carro2_ad_auto
+    j verifica_tipo_ad_auto
+conta_moto2_ad_auto:
+    addi $t3, $t3, 1
+    j verifica_tipo_ad_auto
+marca_carro2_ad_auto:
+    li $t4, 1
+    j verifica_tipo_ad_auto
+slot2_vazio_ad_auto:
+    # salva endereço do slot vazio em $s7
+    move $s7, $t5
+    li $t8, 1 # flag: achou slot vazio
+
+verifica_tipo_ad_auto:
+    # $s2 = tipo ('c' ou 'm')
+    # $t3 = qtd de motos
+    # $t4 = flag carro existe
+    # $s7 = endereço do slot vazio (se $t8==1)
+    # $t8 = flag slot vazio encontrado
+
+    li $t0, 'c'
+    beq $s2, $t0, verifica_carro_ad_auto
+    li $t0, 'm'
+    beq $s2, $t0, verifica_moto_ad_auto
+    j tipo_invalido_ad_auto
+
+verifica_carro_ad_auto:
+    # Se já existe carro, erro
+    bne $t4, $zero, max_auto_ad_auto
+    # Se não há slot vazio, erro
+    beqz $t8, max_auto_ad_auto
+    # Pode adicionar carro no slot vazio
+    j adiciona_auto_ad_auto
+
+verifica_moto_ad_auto:
+    # Se já tem 2 motos, erro
+    li $t0, 2
+    bge $t3, $t0, max_auto_ad_auto
+    # Se não há slot vazio, erro
+    beqz $t8, max_auto_ad_auto
+    # Pode adicionar moto no slot vazio
+    j adiciona_auto_ad_auto
+
+adiciona_auto_ad_auto:
+    # $s7 = endereço do slot vazio
+    # $s2 = tipo
+    # ap_string = modelo
+    # nome_string = cor
+
+    # Escreve tipo
+    sb $s2, 0($s7)
+    # Escreve modelo
+    addi $a0, $s7, 1
+    la   $a1, ap_string
+    jal  strcpy
+    # Escreve cor
+    addi $a0, $s7, 21
+    la   $a1, nome_string
+    jal  strcpy
+
+    PRINT_STRING msg_sucesso_ad_auto
+    j fim_ad_auto
+
+max_auto_ad_auto:
+    PRINT_STRING msg_ap_cheio
+    j fim_ad_auto
+
+ap_invalido_ad_auto:
+    PRINT_STRING msg_ap_invalido
+    j fim_ad_auto
+
+tipo_invalido_ad_auto:
+    PRINT_STRING msg_tipo_automovel_invalido
+    j fim_ad_auto
+
+comando_malformado_ad_auto:
+    PRINT_STRING msg_comando_malformado
+    j fim_ad_auto
+
+fim_ad_auto:
+    lw $ra, 0($sp)
+    lw $s0, 4($sp)
+    lw $s1, 8($sp)
+    lw $s2, 12($sp)
+    lw $s3, 16($sp)
+    lw $s4, 20($sp)
+    lw $s5, 24($sp)
+    lw $s6, 28($sp)
+    lw $s7, 32($sp)
+    lw $t8, 36($sp)
+    addi $sp, $sp, 40
+    j loop_interface
+
 remover_automovel:
     # Salva registradores na pilha
     addi $sp, $sp, -32
@@ -587,11 +731,11 @@ remover_automovel:
     # 1.2: Extrair AP
     move $a0, $s0
     li   $a1, '-'
-    jal  find_char
+    jal  encontrar_caracter
     beq  $v0, $zero, comando_malformado_handler
     move $s1, $v0       # $s1 aponta para o hífen depois do AP
     sb   $zero, 0($s1)   # Coloca um nulo temporário
-    la   $a0, buffer_ap_string
+    la   $a0, ap_string
     move $a1, $s0
     jal  strcpy
     li   $t0, '-'
@@ -600,11 +744,11 @@ remover_automovel:
     # 1.3: Extrair TIPO
     addi $s0, $s1, 1    # Avança para depois do hífen do AP
     move $a0, $s0
-    jal  find_char
+    jal  encontrar_caracter
     beq  $v0, $zero, comando_malformado_handler
     move $s1, $v0       # $s1 aponta para o hífen depois do TIPO
     sb   $zero, 0($s1)
-    la   $a0, buffer_tipo_string
+    la   $a0, tipo_string
     move $a1, $s0
     jal  strcpy
     li   $t0, '-'
@@ -613,7 +757,7 @@ remover_automovel:
     # 1.4: Extrair MODELO
     addi $s0, $s1, 1
     move $a0, $s0
-    jal  find_char
+    jal  encontrar_caracter
     beq  $v0, $zero, comando_malformado_handler
     move $s1, $v0       # $s1 aponta para o hífen depois do MODELO
     sb   $zero, 0($s1)
@@ -631,15 +775,16 @@ remover_automovel:
 
     # --- ETAPA 2: VALIDAÇÃO DOS DADOS DE ENTRADA ---
     # 2.1: Validar AP
-    la   $a0, buffer_ap_string
+    la   $a0, ap_string
     jal  string_to_int
     move $s1, $v0
     move $a0, $s1
-    jal  eh_ap_valido
+    jal  ap_valido
     beq  $v0, $zero, ap_invalido_handler
 
+
     # 2.2: Validar TIPO
-    la   $t0, buffer_tipo_string
+    la   $t0, tipo_string
     lb   $s2, 0($t0) # Carrega o caractere do tipo ('c' ou 'm')
     li   $t1, 'c'
     li   $t2, 'm'
@@ -651,7 +796,7 @@ tipo_ok:
     # --- ETAPA 3: PROCURAR O AUTOMÓVEL ---
     # 3.1: Calcular endereço base do AP
     move $a0, $s1
-    jal  calcular_indice
+    jal  encontrar_indice_ap
     li   $t0, TAMANHO_AP_BLOCO
     mul  $t1, $v0, $t0
     la   $t2, apartamentos
@@ -676,7 +821,7 @@ veiculo_encontrado_handler:
     # "Remover" significa zerar todo o bloco de 40 bytes.
     move $a0, $s3
     jal  limpar_bloco_veiculo
-    la   $a0, msg_sucesso
+    la   $a0, msg_sucesso_formatado
     li   $v0, 4
     syscall
     j    fim_rm_auto
@@ -694,7 +839,8 @@ verificar_slot_veiculo:
     addi  $a1, $a0, OFFSET_VEICULO_MODELO
     la   $a0, buffer_modelo_string
     # Troca $a0 e $a1 para a chamada de strcmp
-    move $t5, $a0; move $a0, $a1
+    move $t5, $a0
+    move $a0, $a1
     move $a1, $t5
     jal  strcmp
     bne  $v0, $zero, nao_corresponde
@@ -740,13 +886,13 @@ li $v0, 4
 syscall
 j fim_rm_auto
 tipo_invalido_handler:
-la $a0, msg_tipo_invalido
+la $a0, msg_tipo_automovel_invalido
 li $v0, 4
 syscall
 j fim_rm_auto
 
 auto_nao_encontrado_handler:
-la $a0, msg_auto_nao_encontrado
+la $a0, msg_automovel_nao_encontrado
 li $v0, 4
 syscall
 j fim_rm_auto
@@ -857,7 +1003,7 @@ info_geral:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
     
 limpar_ap:
     PRINT_STRING str_limpar_ap
@@ -957,7 +1103,7 @@ fim_limpar_ap:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_inteface
+    j loop_interface
       
 limpar_bloco_memoria:
 #	inicia um ponteiro e inicia um contador de bytes restantes
@@ -1015,7 +1161,7 @@ salvar:
 	fim_salvar:
 	lw $s0, 0($sp)
 	addi $sp, $sp, 4
-	j loop_inteface
+	j loop_interface
 	
 recarregar:
 # é a logica inversa do salvar
@@ -1059,7 +1205,7 @@ recarregar:
     fim_recarregar:
     lw $s0, 0($sp)
     addi $sp, $sp, 4
-    j loop_inteface
+    j loop_interface
 formatar: 
 # Carrega o endereço base da nossa estrutura de dados de apartamentos em $t0.
     la $t0, apartamentos  # Carrega o endereço base dos apartamentos
@@ -1176,6 +1322,42 @@ comando_invalido:
     PRINT_STRING msg_comando_malformado  # Imprime mensagem de comando mal formado
     j loop_interface  # Volta para o início do loop
 # -------------- Funções auxiliares -------------- #
+# Copia de $a0 para $a1 até encontrar '-' ou '\0'
+copiar_ate_hifen:
+    lb $t2, 0($a0)
+    beq $t2, $zero, copiar_ate_hifen_fim
+    beq $t2, '-', copiar_ate_hifen_fim
+    sb $t2, 0($a1)
+    addi $a0, $a0, 1
+    addi $a1, $a1, 1
+    j copiar_ate_hifen
+copiar_ate_hifen_fim:
+    sb $zero, 0($a1)
+    jr $ra
+
+# Função strcmp:
+   strcmp:
+      loop_strcmp:
+        lb   $t0, 0($a0)    # Carrega o byte atual da string 1
+        lb   $t1, 0($a1)    # Carrega o byte atual da string 2
+
+        bne  $t0, $t1, diferentes  # Se os bytes forem diferentes, pula para: diferentes
+        beq  $t0, $zero, finish_strcmp  # Se encontrou o caractere nulo, as strings são iguais
+
+        # Incrementa os ponteiros e continua a comparação
+        addi $a0, $a0, 1
+        addi $a1, $a1, 1
+        j    loop_strcmp
+
+      diferentes:
+        # Calcula a diferença dos valores ASCII
+        sub  $v0, $t0, $t1
+        jr   $ra	# Retorna para a função chamadora
+
+      finish_strcmp:
+        li   $v0, 0	# Retorna 0 se as strings são iguais
+        jr   $ra
+
 strncmp:
         beq     $a2, $zero, finish_strncmp   # Se o número máximo de caracteres for 0, retorna 0
 
