@@ -82,6 +82,7 @@ falha_salvamento: .asciiz 		"\n Falha ao salvar!"
 sucesso_recarregar: .asciiz 		"\nSucesso ao recarregar"
 falha_recarregar: .asciiz 		"\nFalha ao recarregar"
 msg_sucesso_ad_auto: .asciiz 		"Automóvel adicionado com sucesso!\n"
+msg_max_veiculos: .asciiz 		"\nNumero máximo de veiculos adicionados!"
 
 # -------------- Strings para comparação no menu --------------- #
 str_ad_morador:   .asciiz   "ad_morador"
@@ -660,6 +661,8 @@ verifica_tipo_ad_auto:
 verifica_carro_ad_auto:
     # Se já existe carro, erro
     bne $t4, $zero, max_auto_ad_auto
+    # se já existe moto, erro
+    bne $t3, $0, max_auto_ad_auto
     # Se não há slot vazio, erro
     beqz $t8, max_auto_ad_auto
     # Pode adicionar carro no slot vazio
@@ -695,7 +698,7 @@ adiciona_auto_ad_auto:
     j fim_ad_auto
 
 max_auto_ad_auto:
-    PRINT_STRING msg_ap_cheio
+    PRINT_STRING msg_max_veiculos
     j fim_ad_auto
 
 ap_invalido_ad_auto:
@@ -921,7 +924,7 @@ li $v0, 4
 syscall
 j fim_rm_auto
 
-# --- EPÍLOGO ---
+# restauração dos registradores
 fim_rm_auto:
     lw   $ra, 0($sp)
     lw   $s0, 4($sp)
@@ -1091,7 +1094,6 @@ fim_loop_moradores:
     li $s3, 0  #0 = Flag para "Moto:" ainda não impresso, 1 =  já impresso
 
     #verifica o veiculo 1
-
     lb $t0, OFFSET_VEICULO1_TIPO($s0) #carrega o tipo do veiculo 1
     beq $t0, 'c', imprime_carro1 #se for c, é um carro.
     beq $t0, 'm', imprime_moto1 #se for m, é uma moto.
@@ -1099,14 +1101,20 @@ fim_loop_moradores:
 
 imprime_carro1:
 
+# imprime modelo manualmente, porque o PRINT_STRING ta dando interferencia no $a0
+# ficou confuso de mesclar os 2
     PRINT_STRING str_carro #imprime "Carro:"
+    la $a0, str_modelo
+    li $v0, 4
+    syscall
+    
     addi $a0, $s0, OFFSET_VEICULO1_MODELO #carrega o endereço do modelo do veiculo 1
-    PRINT_STRING str_modelo
     li   $v0, 4 #imprime o modelo do veiculo 1
     syscall     
     PRINT_STRING nova_linha
-    add $a0, $s0, OFFSET_VEICULO1_COR #carrega o endereço da cor do veiculo 1
+  
     PRINT_STRING str_cor
+    add $a0, $s0, OFFSET_VEICULO1_COR #carrega o endereço da cor do veiculo 1
     li   $v0, 4  #imprime a cor do veiculo 1
     syscall
     PRINT_STRING nova_linha
@@ -1120,13 +1128,16 @@ imprime_moto1:
 
 imprime_dados_moto1:
 
-    addi $a0, $s0, OFFSET_VEICULO1_MODELO #carrega o endereço do modelo da moto 1
     PRINT_STRING str_modelo
+    
+    addi $a0, $s0, OFFSET_VEICULO1_MODELO #carrega o endereço do modelo da moto 1
     li   $v0, 4 #imprime o modelo da moto 1
     syscall
+    
     PRINT_STRING nova_linha
-    add $a0, $s0, OFFSET_VEICULO1_COR #carrega o endereço da cor da moto 1
+   
     PRINT_STRING str_cor
+    add $a0, $s0, OFFSET_VEICULO1_COR #carrega o endereço da cor da moto 1
     li   $v0, 4 #imprime a cor da moto 1
     syscall
     PRINT_STRING nova_linha
@@ -1144,15 +1155,20 @@ imprimir_moto2:
     li $s3, 1 #marca que "Moto:" já foi impresso
 
 imprime_dados_moto2:
-    addi $a0, $s0, OFFSET_VEICULO2_MODELO #carrega o endereço do modelo da moto 2
     PRINT_STRING str_modelo
+    
+    addi $a0, $s0, OFFSET_VEICULO2_MODELO #carrega o endereço do modelo da moto 2
     li   $v0, 4 #imprime o modelo da moto 2
     syscall
+    
     PRINT_STRING nova_linha
-    add $a0, $s0, OFFSET_VEICULO2_COR #carrega o endereço da cor da moto 2
+
     PRINT_STRING str_cor
+    
+    add $a0, $s0, OFFSET_VEICULO2_COR #carrega o endereço da cor da moto 2
     li   $v0, 4 #imprime a cor da moto 2
     syscall
+    
     PRINT_STRING nova_linha
     j fim_impressao_ap #sai da impressão do Ap
 
@@ -1495,7 +1511,7 @@ formatar:
     sw $t0, 0($sp)  # Salva $t0
     sw $t1, 4($sp)  # Salva $t1
 
-    PRINT_STRING msg_sucesso_formatado  # Imprime mensagem de formatação
+    
 # Carrega o endereço base da nossa estrutura de dados de apartamentos em $t0.
     la $t0, apartamentos  # Carrega o endereço base dos apartamentos
 
@@ -1518,7 +1534,11 @@ formatar_loop:
     j formatar_loop  # Volta para o início do loop
 
 formatar_fim:
-
+	# restaurando os registradores
+	lw $t0, 0($sp)
+	lw $t1, 4($sp)
+	addi $sp, $sp, 4
+	
     PRINT_STRING msg_sucesso_formatado  # Imprime mensagem de sucessoS
 
     j loop_interface  # Volta para o início do loop
