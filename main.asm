@@ -1,12 +1,11 @@
-###################################################################
-#   Projeto de Gerenciamento de Apartamentos em Assembly MIPS
-#   Discentes:
-#               Guilherme Oliveira Aroucha
-#               Kleber Barbosa de Fraga
-#               Pedro Henrique Apolinario da Silva
-#
-####################################################################
-
+#####################################################################
+#   Projeto de Gerenciamento de Apartamentos em Assembly MIPS	    #
+#   Discentes:							    #
+#               Guilherme Oliveira Aroucha			    #
+#               Kleber Barbosa de Fraga				    #
+#               Pedro Henrique Apolinario da Silva		    #
+#								    #
+#####################################################################
 
 # ================================== CONSTANTES DA ESTRUTURA DE DADOS ================================== #
 #   Será usado .eqv, para deixar o código mais fácil de ser lido.
@@ -29,6 +28,7 @@
 .eqv OFFSET_VEICULO_MODELO 1    # Offset do modelo dentro do bloco do veículo
 .eqv OFFSET_VEICULO_COR 21      # Offset da cor dentro do bloco do veículo
 .eqv TAMANHO_VEICULO 40         # Tamanho total do bloco do veículo
+
 
 .eqv OFFSET_VEICULO1_TIPO 160 # 1 byte para o tipo, sera C ou M
 .eqv OFFSET_VEICULO1_MODELO 161 # 20 bytes para o modelo do veiculo
@@ -60,9 +60,8 @@
 .data
 apartamentos: .space 10240 # quantidade de apartamentos * 256 bytes
 
-ap_string: .space 10 #
-nome_string: .space 50 #
-
+ap_string: .space 10 
+nome_string: .space 50 
 tipo_string: .space 5
 buffer_modelo_string: .space 20
 buffer_cor_string: .space 20
@@ -80,8 +79,9 @@ msg_principal: .asciiz                  "Bem-vindo ao sistema de gerenciamento d
 msg_ap_vazio: .asciiz 			"Falha: Ap vazio\n"
 sucesso_salvamento: .asciiz 		"\nSucesso ao salvar!"
 falha_salvamento: .asciiz 		"\n Falha ao salvar!"
-sucesso_recarregar: .asciiz "\nSucesso ao recarregar"
-falha_recarregar: .asciiz "\nFalha ao recarregar"
+sucesso_recarregar: .asciiz 		"\nSucesso ao recarregar"
+falha_recarregar: .asciiz 		"\nFalha ao recarregar"
+msg_sucesso_ad_auto: .asciiz 		"Automóvel adicionado com sucesso!\n"
 
 # -------------- Strings para comparação no menu --------------- #
 str_ad_morador:   .asciiz   "ad_morador"
@@ -121,10 +121,11 @@ msg_funcao_salvar: .asciiz "Função salvar chamada com sucesso!\n"
 msg_funcao_recarregar: .asciiz "Função recarregar chamada com sucesso!\n"
 msg_funcao_formatar: .asciiz "Função formatar chamada com sucesso!\n"
 msg_funcao_sair: .asciiz "Função sair chamada com sucesso!\n"
-msg_lista_funcoes: .asciiz "Comandos disponíveis:\nad_morador - Adicionar morador\n rm_morador - Remover morador\n ad_auto - Adicionar automóvel\n rm_auto - Remover automóvel\ninfo_ap - Informações do apartamento\ninfo_geral - Informações gerais\nlimpar_ap - Limpar apartamento\nsalvar - Salvar dados\nrecarregar - Recarregar dados\nformatar - Formatar sistema\nsair - Sair do sistema\n"
-msg_limpa_terminal: .asciiz "\n" # Sequência de escape para limpar o terminal
+msg_lista_funcoes: .asciiz "Comandos disponíveis:\nad_morador - Adicionar morador\nrm_morador - Remover morador\nad_auto - Adicionar automóvel\nrm_auto - Remover automóvel\ninfo_ap - Informações do apartamento\ninfo_geral - Informações gerais\nlimpar_ap - Limpar apartamento\nsalvar - Salvar dados\nrecarregar - Recarregar dados\nformatar - Formatar sistema\najuda - lista os comandos\nsair - Sair do sistema\n"
+msg_limpa_terminal: .asciiz "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" # Sequência de escape para limpar o terminal
 msg_sucesso_formatado: .asciiz "\nApartamento formatado"
-msg_sucesso_ad_auto: .asciiz "Automóvel adicionado com sucesso!\n"
+msg_sucesso_remover_veiculo: .asciiz "\nVeiculo Removido!"
+
 
 # -------------- Mensagens de Apoio --------------- #
 str_abre_parenteses: .asciiz "("
@@ -137,13 +138,16 @@ str_nova_linha: .asciiz "\n"
 nome_banco_dados: .asciiz "condominio.dat"
 banner: .asciiz "\n\nKGP-shell>> "
 .text
+.globl main
 # -------------- Função Principal -------------- #
 main:
-    #inicia o loop principal
+    #inicia o loop principal e lê do arquivo salvo
     PRINT_STRING msg_principal
     PRINT_STRING msg_lista_funcoes
-loop_interface:
-    PRINT_STRING msg_limpa_terminal # Limpa o terminal
+    j recarregar
+    
+loop_inteface:
+    PRINT_STRING str_nova_linha # Limpa o terminal
     PRINT_STRING banner #Imprime o banner
 
     # Leitura do comando do usuário
@@ -155,14 +159,16 @@ loop_interface:
     # Remove o caractere de nova linha ('\n') do final da string lida
     la $t0, input_buffer
     remove_newline:
-        lb $t1, 0($t0)
-        beq $t1, $zero, end_remove_newline
+        lb $t1, 0($t0) # carrega o byte atual
+        beq $t1, $zero, end_remove_newline 
+        
         li $t2, 10           # ASCII de '\n'
-        beq $t1, $t2, set_zero
+        beq $t1, $t2, encontrou_nova_linha
+        
         addi $t0, $t0, 1
         j remove_newline
 
-    set_zero:
+    encontrou_nova_linha:
         sb $zero, 0($t0)     # Substitui '\n' por '\0'
 
     end_remove_newline:
@@ -217,15 +223,14 @@ loop_interface:
     beq $v0, $zero, sair
     # Se nenhum comando foi reconhecido, imprime mensagem de erro
     PRINT_STRING msg_comando_malformado
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
 
 ajuda:
     PRINT_STRING msg_lista_funcoes  # Imprime a lista de comandos disponíveis
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
 
 
 adicionar_morador:
-    PRINT_STRING msg_limpa_terminal
     la $a0, input_buffer
     # Boa prática: Salvar os registradores que serão usados na pilha
     addi $sp, $sp, -28
@@ -343,14 +348,13 @@ adicionar_morador:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28 # Libera o espaço da pilha
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
 
 ap_cheio_adicionar:
     PRINT_STRING msg_ap_cheio  # Imprime mensagem de apartamento cheio
     j fim_adicionar_morador  # vai para a restauração dos registradores
    
 remover_morador:
-    PRINT_STRING msg_limpa_terminal
     la $a0, input_buffer # $a0 aponta para a entrada original
     # Boa prática: Salvar os registradores que serão usados na pilha
     addi $sp, $sp, -28
@@ -401,7 +405,7 @@ remover_morador:
 
     move $a0, $s4  # Passa o número do apartamento para $a0
     jal ap_valido  # Verifica se o número do apartamento é válido
-    beq $v0, $zero, fim_remover_morador # se o ap é invalido, termina a função
+    beq $v0, $0, fim_remover_morador # se o ap é invalido, termina a função
     
     move $a0, $s4  # Passa o número do apartamento para $a0
     jal encontrar_indice_ap  # Calcula o índice do apartamento
@@ -446,7 +450,7 @@ morador_encontrado:
   sb $t5, OFFSET_NUM_MORADORES($s0)  # Atualiza o número de moradores no apartamento
 
  # Verifica se o apartamento ficou vazio 
- bne $t5, $zero, sucesso_remocao
+ bne $t5, $0, sucesso_remocao
  
  # se o contador de moradores for zero, o apartamento deve ser marcado como vazio
  sb $0, OFFSET_STATUS_AP($s0)  # Marca o apartamento como vazio
@@ -464,7 +468,7 @@ j sucesso_remocao # finaliza a função e vai restaurar os registradores
 
 morador_nao_encontrado:
 PRINT_STRING msg_morador_nao_encontrado
-j loop_interface
+j loop_inteface
 
 falha_ap_vazio_remocao:
 PRINT_STRING msg_ap_vazio
@@ -484,7 +488,7 @@ fim_remover_morador:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
 
 limpar_veiculos:
     # loop que pecorre 40 bytes marcando 0
@@ -498,7 +502,7 @@ limpar_veiculos:
     j loop_limpar_veiculos  # Volta para o início do loop
 fim_limpar_veiculos:
     jr $ra  # Retorna da função
- 
+   
 adicionar_automovel:
     # Salva registradores na pilha
     addi $sp, $sp, -40
@@ -715,7 +719,7 @@ fim_ad_auto:
     lw $s7, 32($sp)
     lw $t8, 36($sp)
     addi $sp, $sp, 40
-    j loop_interface
+    j loop_inteface
 
 remover_automovel:
     # Salva registradores na pilha
@@ -829,7 +833,7 @@ veiculo_encontrado_handler:
     # "Remover" significa zerar todo o bloco de 40 bytes.
     move $a0, $s3
     jal  limpar_bloco_veiculo
-    la   $a0, msg_sucesso_formatado
+    la   $a0, msg_sucesso_remover_veiculo
     li   $v0, 4
     syscall
     j    fim_rm_auto
@@ -925,7 +929,8 @@ fim_rm_auto:
     lw   $s5, 24($sp)
     lw   $s6, 28($sp)
     addi $sp, $sp, 32
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
+
 
 info_ap:
     # Salva os registradores na pilha
@@ -999,7 +1004,7 @@ fim_info_ap:
     lw   $s2, 12($sp)  
     lw   $s3, 16($sp)  
     addi $sp, $sp, 20 # libera a pilha
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
 
 
 # Função para imprimir as informações de um apartamento
@@ -1279,10 +1284,9 @@ info_geral:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
     
 limpar_ap:
-    PRINT_STRING str_limpar_ap
     # Boa prática: Salvar os registradores que serão usados na pilha
     addi $sp, $sp, -28
     sw   $ra, 0($sp)
@@ -1310,11 +1314,11 @@ limpar_ap:
    copia_ap_num_loop:
     lb   $t1, 0($s1)     # Carrega um byte da fonte (input_buffer)
     sb   $t1, 0($t0)     # Guarda o byte no destino (ap_buffer)
-    beq  $t1, $zero, copia_ap_num_done # Se o byte for nulo (fim da input_buffer), terminamos a cópia.
+    beq  $t1, $zero, copia_ap_num_fim # Se o byte for nulo (fim da input_buffer), terminamos a cópia.
     addi $s1, $s1, 1    # Avança o ponteiro da fonte
     addi $t0, $t0, 1    # Avança o ponteiro do destino
     j    copia_ap_num_loop
-copia_ap_num_done:
+copia_ap_num_fim:
 
     # converter a string para inteiro antes de validar o numero do ap
     la $a0, ap_buffer
@@ -1340,8 +1344,6 @@ copia_ap_num_done:
     # laço de repetição para varrer os 5 moradores
     li $s3, 0 # i = 0
 laco_repeticao_limpeza:
-    # 1h30 debugando pra descobrir onde tava o loop infinito
-    # tava chamando limpeza_veiculos no lugar de limpeza_ap_veiculos :)
 	beq $s3, 5, limpeza_ap_veiculos # se i = 5, acabou os moradores, então tem que eliminar os carros
     	
     	li $t0, TAMANHO_NOME_MORADOR
@@ -1379,7 +1381,7 @@ fim_limpar_ap:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_interface
+    j loop_inteface
       
 limpar_bloco_memoria:
 #	inicia um ponteiro e inicia um contador de bytes restantes
@@ -1437,7 +1439,7 @@ salvar:
 	fim_salvar:
 	lw $s0, 0($sp)
 	addi $sp, $sp, 4
-	j loop_interface
+	j loop_inteface
 	
 recarregar:
 # é a logica inversa do salvar
@@ -1481,15 +1483,9 @@ recarregar:
     fim_recarregar:
     lw $s0, 0($sp)
     addi $sp, $sp, 4
-    j loop_interface
-formatar: 
-
-#salva os registradores que serão usados na pilha
-    addi $sp, $sp, -8
-    sw $t0, 0($sp)  # Salva $t0
-    sw $t1, 4($sp)  # Salva $t1
-
-    PRINT_STRING msg_formatar_apartamentos  # Imprime mensagem de formatação
+    j loop_inteface
+formatar:
+    
 # Carrega o endereço base da nossa estrutura de dados de apartamentos em $t0.
     la $t0, apartamentos  # Carrega o endereço base dos apartamentos
 
@@ -1513,16 +1509,11 @@ formatar_loop:
 
 formatar_fim:
 
-    PRINT_STRING msg_sucesso_formatado  # Imprime mensagem de sucesso
-    
-    # Restaura os registradores
-    lw $t0, 0($sp)
-    lw $t1, 4($sp)
-    addi $sp, $sp, 8  # Ajusta o ponteiro da pilha
+    PRINT_STRING msg_sucesso_formatado  # Imprime mensagem de sucessoS
 
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
+    
 sair:  
-    PRINT_STRING str_sair
     addi $v0, $zero, 10  # Código de serviço para sair
     syscall
 ap_valido:
@@ -1570,7 +1561,7 @@ ap_invalido:
     jr $ra  # Retorna da função
 ap_vazio:
     PRINT_STRING msg_ap_vazio  # Imprime mensagem de apartamento vazio
-    j loop_interface # Retorna a função
+    j loop_inteface # Retorna a função
 
 encontrar_indice_ap:
     # Registadores usados:
@@ -1603,44 +1594,8 @@ encontrar_indice_ap:
 
 comando_invalido:
     PRINT_STRING msg_comando_malformado  # Imprime mensagem de comando mal formado
-    j loop_interface  # Volta para o início do loop
+    j loop_inteface  # Volta para o início do loop
 # -------------- Funções auxiliares -------------- #
-# Copia de $a0 para $a1 até encontrar '-' ou '\0'
-copiar_ate_hifen:
-    lb $t2, 0($a0)
-    beq $t2, $zero, copiar_ate_hifen_fim
-    beq $t2, '-', copiar_ate_hifen_fim
-    sb $t2, 0($a1)
-    addi $a0, $a0, 1
-    addi $a1, $a1, 1
-    j copiar_ate_hifen
-copiar_ate_hifen_fim:
-    sb $zero, 0($a1)
-    jr $ra
-
-# Função strcmp:
-   strcmp:
-      loop_strcmp:
-        lb   $t0, 0($a0)    # Carrega o byte atual da string 1
-        lb   $t1, 0($a1)    # Carrega o byte atual da string 2
-
-        bne  $t0, $t1, diferentes  # Se os bytes forem diferentes, pula para: diferentes
-        beq  $t0, $zero, finish_strcmp  # Se encontrou o caractere nulo, as strings são iguais
-
-        # Incrementa os ponteiros e continua a comparação
-        addi $a0, $a0, 1
-        addi $a1, $a1, 1
-        j    loop_strcmp
-
-      diferentes:
-        # Calcula a diferença dos valores ASCII
-        sub  $v0, $t0, $t1
-        jr   $ra	# Retorna para a função chamadora
-
-      finish_strcmp:
-        li   $v0, 0	# Retorna 0 se as strings são iguais
-        jr   $ra
-
 strncmp:
         beq     $a2, $zero, finish_strncmp   # Se o número máximo de caracteres for 0, retorna 0
 
@@ -1766,5 +1721,39 @@ end_sti:
     addi $sp, $sp, 12 # Liberar espaço na pilha
     jr $ra # Retornar da função
 
+copiar_ate_hifen:
+    lb $t2, 0($a0)
+    beq $t2, $zero, copiar_ate_hifen_fim
+    beq $t2, '-', copiar_ate_hifen_fim
+    sb $t2, 0($a1)
+    addi $a0, $a0, 1
+    addi $a1, $a1, 1
+    j copiar_ate_hifen
+copiar_ate_hifen_fim:
+    sb $zero, 0($a1)
+    jr $ra
+
+# Função strcmp:
+   strcmp:
+      loop_strcmp:
+        lb   $t0, 0($a0)    # Carrega o byte atual da string 1
+        lb   $t1, 0($a1)    # Carrega o byte atual da string 2
+
+        bne  $t0, $t1, diferentes  # Se os bytes forem diferentes, pula para: diferentes
+        beq  $t0, $zero, finish_strcmp  # Se encontrou o caractere nulo, as strings são iguais
+
+        # Incrementa os ponteiros e continua a comparação
+        addi $a0, $a0, 1
+        addi $a1, $a1, 1
+        j    loop_strcmp
+
+      diferentes:
+        # Calcula a diferença dos valores ASCII
+        sub  $v0, $t0, $t1
+        jr   $ra	# Retorna para a função chamadora
+
+      finish_strcmp:
+        li   $v0, 0	# Retorna 0 se as strings são iguais
+        jr   $ra
 
 
