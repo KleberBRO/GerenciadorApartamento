@@ -281,6 +281,9 @@ adicionar_morador:
     move $a0, $s4  # Passa o número do apartamento para $a0
     jal ap_valido  # Verifica se o número do apartamento é válido
     
+    beq $v0, $zero, fim_adicionar_morador  # Se não for válido, salta para o fim da função
+
+    
     move $a0, $s4  # Passa o número do apartamento para $a0
     jal encontrar_indice_ap  # Calcula o índice do apartamento
     move $s3, $v0  # Salva o índice do apartamento em $s3
