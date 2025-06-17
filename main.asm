@@ -1483,6 +1483,13 @@ recarregar:
     addi $sp, $sp, 4
     j loop_interface
 formatar: 
+
+#salva os registradores que serão usados na pilha
+    addi $sp, $sp, -8
+    sw $t0, 0($sp)  # Salva $t0
+    sw $t1, 4($sp)  # Salva $t1
+
+    PRINT_STRING msg_formatar_apartamentos  # Imprime mensagem de formatação
 # Carrega o endereço base da nossa estrutura de dados de apartamentos em $t0.
     la $t0, apartamentos  # Carrega o endereço base dos apartamentos
 
