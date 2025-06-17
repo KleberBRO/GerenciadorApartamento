@@ -1056,17 +1056,18 @@ loop_moradores:
 
     li $t0, TAMANHO_NOME_MORADOR # 32 bytes
     mul $t1, $s2, $t0 # t1 = contador de moradores * tamanho do nome do morador
-    add $a0, $s0, $t1 # a0 = endereço base do Ap + offset do morador atual
+    add $t5, $s0, $t1 # a0 = endereço base do Ap + offset do morador atual
 
     #verifica se o slot do morador está vazio(se o primeiro byte do nome não é nulo)
 
-    lb $t0, 0($a0) #carrega o primeiro byte do nome do morador
+    lb $t0, 0($t5) #carrega o primeiro byte do nome do morador
     beq $t0, $zero, proximo_morador #se for nulo, vai para o próximo morador
 
     #Imprime o nome do morador
 
     PRINT_STRING indentacao
     li   $v0, 4 
+    move $a0, $t5 #carrega o endereço do nome do morador
     syscall
     PRINT_STRING nova_linha
 
@@ -1489,7 +1490,7 @@ formatar:
     sw $t0, 0($sp)  # Salva $t0
     sw $t1, 4($sp)  # Salva $t1
 
-    PRINT_STRING msg_formatar_apartamentos  # Imprime mensagem de formatação
+    PRINT_STRING msg_sucesso_formatado  # Imprime mensagem de formatação
 # Carrega o endereço base da nossa estrutura de dados de apartamentos em $t0.
     la $t0, apartamentos  # Carrega o endereço base dos apartamentos
 
