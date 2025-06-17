@@ -146,7 +146,7 @@ main:
     PRINT_STRING msg_lista_funcoes
     j recarregar
     
-loop_inteface:
+loop_interface:
     PRINT_STRING str_nova_linha # Limpa o terminal
     PRINT_STRING banner #Imprime o banner
 
@@ -223,11 +223,11 @@ loop_inteface:
     beq $v0, $zero, sair
     # Se nenhum comando foi reconhecido, imprime mensagem de erro
     PRINT_STRING msg_comando_malformado
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 ajuda:
     PRINT_STRING msg_lista_funcoes  # Imprime a lista de comandos disponíveis
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 
 adicionar_morador:
@@ -351,7 +351,7 @@ adicionar_morador:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28 # Libera o espaço da pilha
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 ap_cheio_adicionar:
     PRINT_STRING msg_ap_cheio  # Imprime mensagem de apartamento cheio
@@ -471,7 +471,7 @@ j sucesso_remocao # finaliza a função e vai restaurar os registradores
 
 morador_nao_encontrado:
 PRINT_STRING msg_morador_nao_encontrado
-j loop_inteface
+j loop_interface
 
 falha_ap_vazio_remocao:
 PRINT_STRING msg_ap_vazio
@@ -491,7 +491,7 @@ fim_remover_morador:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 limpar_veiculos:
     # loop que pecorre 40 bytes marcando 0
@@ -722,7 +722,7 @@ fim_ad_auto:
     lw $s7, 32($sp)
     lw $t8, 36($sp)
     addi $sp, $sp, 40
-    j loop_inteface
+    j loop_interface
 
 remover_automovel:
     # Salva registradores na pilha
@@ -932,7 +932,7 @@ fim_rm_auto:
     lw   $s5, 24($sp)
     lw   $s6, 28($sp)
     addi $sp, $sp, 32
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 
 info_ap:
@@ -1007,7 +1007,7 @@ fim_info_ap:
     lw   $s2, 12($sp)  
     lw   $s3, 16($sp)  
     addi $sp, $sp, 20 # libera a pilha
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 
 
 # Função para imprimir as informações de um apartamento
@@ -1288,7 +1288,7 @@ info_geral:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
     
 limpar_ap:
     # Boa prática: Salvar os registradores que serão usados na pilha
@@ -1385,7 +1385,7 @@ fim_limpar_ap:
     lw   $s4, 20($sp)
     lw   $s5, 24($sp)
     addi $sp, $sp, 28
-    j loop_inteface
+    j loop_interface
       
 limpar_bloco_memoria:
 #	inicia um ponteiro e inicia um contador de bytes restantes
@@ -1443,7 +1443,7 @@ salvar:
 	fim_salvar:
 	lw $s0, 0($sp)
 	addi $sp, $sp, 4
-	j loop_inteface
+	j loop_interface
 	
 recarregar:
 # é a logica inversa do salvar
@@ -1521,7 +1521,7 @@ formatar_fim:
 
     PRINT_STRING msg_sucesso_formatado  # Imprime mensagem de sucessoS
 
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
     
 sair:  
     addi $v0, $zero, 10  # Código de serviço para sair
@@ -1571,7 +1571,7 @@ ap_invalido:
     jr $ra  # Retorna da função
 ap_vazio:
     PRINT_STRING msg_ap_vazio  # Imprime mensagem de apartamento vazio
-    j loop_inteface # Retorna a função
+    j loop_interface # Retorna a função
 
 encontrar_indice_ap:
     # Registadores usados:
@@ -1604,7 +1604,7 @@ encontrar_indice_ap:
 
 comando_invalido:
     PRINT_STRING msg_comando_malformado  # Imprime mensagem de comando mal formado
-    j loop_inteface  # Volta para o início do loop
+    j loop_interface  # Volta para o início do loop
 # -------------- Funções auxiliares -------------- #
 strncmp:
         beq     $a2, $zero, finish_strncmp   # Se o número máximo de caracteres for 0, retorna 0
